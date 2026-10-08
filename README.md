@@ -36,18 +36,49 @@ different one, e.g. `npm run dev -- -p 43127`.
 
 ## Project layout
 
+The codebase is organized by feature, not by technical layer. Each domain owns
+its own `api`, `components`, `hooks`, `schemas`, and `types` directories.
+
 ```
 src/
-  app/
-    layout.tsx      Root layout, fonts, metadata
-    page.tsx        Demo page exercising every installed primitive
-    globals.css     Tailwind entrypoint + shadcn design tokens
+  app/                  Next.js App Router routes (thin router glue only)
+  features/             Domain-isolated feature modules
+    auth/
+    volunteers/
+    events/
+    crm/
+    reports/
+      api/              Server calls for this domain
+      components/       UI owned by this domain
+      hooks/            Stateful logic for this domain
+      schemas/          Validation schemas
+      types/            Domain types
+      index.ts          Public barrel — the only supported import path
   components/
-    ui/             shadcn/ui primitives (owned by this repo, edit freely)
+    ui/                 Base atomic shadcn primitives
+    common/             Un-opinionated composed patterns
+      data-table/
+      forms/
+      navigation/
+      metrics/
   lib/
-    utils.ts        Re-exports the `cn` class-name helper
-components.json     shadcn/ui CLI configuration
+    api-client.ts       Typed fetch wrapper (`apiClient`, `ApiError`)
+    utils.ts            Re-exports the `cn` class-name helper
+components.json         shadcn/ui CLI configuration
 ```
+
+### Import rules
+
+Import a feature only through its barrel, never by reaching into its internals:
+
+```ts
+import { VolunteerTable } from "@/features/volunteers"   // yes
+import { VolunteerTable } from "@/features/volunteers/components/volunteer-table" // no
+```
+
+Anything not exported from a feature's `index.ts` is private to that feature.
+Code shared across two or more features belongs in `src/components/common` or
+`src/lib` instead.
 
 ## Installed UI primitives
 
