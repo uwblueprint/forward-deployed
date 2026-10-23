@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      # `next build` must run before a standalone `tsc --noEmit`: LayoutProps
+      # and the other route-level generated types only exist once Next.js
+      # has written .next/types, which only happens during build/dev. `npm
+      # test` immediately follows build per this ticket's spec; the repo-wide
+      # typecheck (next build only typechecks what it reaches from routes)
+      # runs last so it doesn't block that ordering.
+      - run: npm run build
+
+      - run: npm test
+
+      - run: npx tsc --noEmit
