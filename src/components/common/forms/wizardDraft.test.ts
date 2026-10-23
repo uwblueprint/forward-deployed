@@ -53,9 +53,3 @@ describe("wizardDraft", () => {
     }
   })
 })
-
-describe("TEMPORARY CI verification - remove before merge", () => {
-  it("is an intentionally failing assertion to prove CI catches failures", () => {
-    expect(true).toBe(false)
-  })
-})
