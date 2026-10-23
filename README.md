@@ -34,6 +34,16 @@ different one, e.g. `npm run dev -- -p 43127`.
 | `npm run start` | Serve the production build |
 | `npm run lint` | Run ESLint |
 
+## Contributing
+
+| Rule | Detail |
+| --- | --- |
+| Branch protection | `main` is protected. No direct pushes; all changes go through a pull request. |
+| CI | Checks must pass before a PR can merge. |
+| Approvals | Not required. Once checks are green, authors can merge their own PR. |
+| Code owners | `.github/CODEOWNERS` auto-requests reviewers for visibility only. Approval is not required. |
+| Branch naming | Generally `<type>/<short-description>`, e.g. `feature/add-search-bar`. Treat this as a guideline, not a strict rule. |
+
 ## Project layout
 
 The codebase is organized by feature, not by technical layer. Each domain owns
