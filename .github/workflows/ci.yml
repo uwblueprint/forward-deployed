@@ -20,8 +20,14 @@ jobs:
 
       - run: npm run lint
 
-      - run: npx tsc --noEmit
-
+      # `next build` must run before a standalone `tsc --noEmit`: LayoutProps
+      # and the other route-level generated types only exist once Next.js
+      # has written .next/types, which only happens during build/dev. `npm
+      # test` immediately follows build per this ticket's spec; the repo-wide
+      # typecheck (next build only typechecks what it reaches from routes)
+      # runs last so it doesn't block that ordering.
       - run: npm run build
 
       - run: npm test
+
+      - run: npx tsc --noEmit
