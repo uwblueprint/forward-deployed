@@ -85,6 +85,9 @@ Code shared across two or more features belongs in `src/components/common` or
 `button`, `input`, `label`, `card`, `dialog`, `dropdown-menu`, `select`,
 `table`, `badge`, `tabs`.
 
+See them all rendered together at `/showcase` (`src/app/showcase/page.tsx`)
+when running the dev server.
+
 Add more with:
 
 ```bash
