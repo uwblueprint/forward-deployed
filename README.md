@@ -13,9 +13,13 @@ shadcn/ui base primitives already installed.
 | Components | shadcn/ui (`base-nova` style, `neutral` base color) |
 | Icons | lucide-react |
 | Linting | ESLint (`eslint-config-next`) |
+| Testing | Vitest (`jsdom` environment, jest-dom matchers) |
 | Import alias | `@/*` → `src/*` |
 
 ## Getting started
+
+Use Node 24, the version pinned in `.nvmrc` and used by CI (`nvm use` picks it
+up).
 
 ```bash
 npm install
@@ -33,6 +37,9 @@ different one, e.g. `npm run dev -- -p 43127`.
 | `npm run build` | Production build |
 | `npm run start` | Serve the production build |
 | `npm run lint` | Run ESLint |
+| `npm run typecheck` | Generate Next.js route types, then run `tsc --noEmit` |
+| `npm test` | Run the Vitest suite once |
+| `npm run test:watch` | Run Vitest in watch mode |
 
 ## Project layout
 
