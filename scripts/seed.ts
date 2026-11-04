@@ -27,7 +27,7 @@ const EVENT_COUNT = 10
 const REGISTRATION_COUNT = 10
 
 const VOLUNTEER_STATUSES = ["approved", "approved", "approved", "pending", "rejected"] as const
-const EVENT_STATUSES = ["published", "published", "published", "draft", "completed", "cancelled"] as const
+const EVENT_STATUSES = ["published", "published", "draft", "completed", "cancelled"] as const
 
 // Must match WEEKDAYS and SHIFTS in the onboarding schema and the check
 // constraints in the first migration.
@@ -99,9 +99,11 @@ function check(error: { message: string } | null, step: string): void {
   }
 }
 
-// Midnight today, so dates are stable within a day and events stay upcoming.
+// Midnight today, so dates are stable within a day. Upcoming events start from
+// tomorrow, so none of them has already happened by the time the seed runs.
 const today = new Date()
 today.setHours(0, 0, 0, 0)
+const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000)
 
 // --- Generate -----------------------------------------------------------------
 
@@ -169,7 +171,7 @@ const events = Array.from({ length: EVENT_COUNT }, (_, i) => {
   const startsAt =
     status === "completed"
       ? faker.date.recent({ days: 30, refDate: today })
-      : faker.date.soon({ days: 45, refDate: today })
+      : faker.date.soon({ days: 45, refDate: tomorrow })
   startsAt.setMinutes(0, 0, 0)
   const endsAt = new Date(startsAt.getTime() + faker.number.int({ min: 2, max: 4 }) * 60 * 60 * 1000)
   return {
