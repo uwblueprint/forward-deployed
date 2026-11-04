@@ -1,28 +1,25 @@
 import { Suspense } from "react";
+import { AdminShell } from "@/components/common/navigation";
 import { requireRole } from "@/features/auth";
 
 async function RequireRole({ children }: { children: React.ReactNode }) {
   // Admin area policy (admin + manager) is pending team confirmation.
   await requireRole(["admin", "manager"]);
 
-  return (
-    <>
-      <p>Admin area</p>
-      {children}
-    </>
-  );
+  return children;
 }
 
+// Server component: route-level auth checks belong here, not inside AdminShell.
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      <Suspense>
-        <RequireRole>{children}</RequireRole>
-      </Suspense>
-    </div>
+    <Suspense>
+      <RequireRole>
+        <AdminShell>{children}</AdminShell>
+      </RequireRole>
+    </Suspense>
   );
 }
