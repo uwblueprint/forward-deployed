@@ -109,6 +109,34 @@ To transfer ownership of an account:
 3. Only then may the old owner leave or be downgraded. Every account must keep at least two owners.
 4. Update the table above in the same pull request.
 
+## Database
+
+All schema changes go in migration files under `supabase/migrations/`. Never
+change tables from the Supabase dashboard. Who can read or change what is
+described in `docs/role-model.md`.
+
+Local database (needs Docker):
+
+```bash
+npx supabase start      # start the local stack
+npx supabase db reset   # rebuild the local database from the migrations
+npx supabase test db    # run the access-control tests in supabase/tests/
+npx supabase stop       # stop the local stack
+```
+
+Seed data:
+
+```bash
+npm run db:seed
+```
+
+The seed targets whatever project `.env.local` points at and needs
+`SUPABASE_SECRET_KEY`. It creates 10 organizations, one admin per organization,
+10 volunteers with a mix of statuses, 10 events, and 10 registrations, then
+prints the logins. Every login shares one password: `SEED_USER_PASSWORD` if set,
+otherwise a random one printed at the end. Re-running replaces only the seed's
+own rows. It runs TypeScript directly, so it needs Node 22.18 or newer.
+
 ## Installed UI primitives
 
 `button`, `input`, `label`, `card`, `dialog`, `dropdown-menu`, `select`,
