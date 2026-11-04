@@ -28,11 +28,16 @@ create table public.volunteers (
   reviewed_at timestamptz,
   phone text,
   location text,
-  availability_days text[] not null default '{}',
-  availability_shifts text[] not null default '{}',
+  -- Mirrors WEEKDAYS and SHIFTS in src/features/volunteers/schemas/volunteerSchema.ts.
+  -- Text with check constraints (not enums) so the options stay easy to change.
+  availability_days text[] not null default '{}'
+    check (availability_days <@ array['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+  shift_preference text
+    check (shift_preference in ('morning', 'afternoon', 'evening')),
   skills text[] not null default '{}',
   emergency_contact_name text,
   emergency_contact_phone text,
+  emergency_contact_relationship text,
   consent_accepted_at timestamptz,
   created_at timestamptz not null default now()
 );
