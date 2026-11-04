@@ -130,9 +130,17 @@ Advisories that come only through dev tooling — the `shadcn` CLI and the
 accepted: patch them with `npm audit fix` when a fix lands, but they do not
 block a merge.
 
+Currently open (as of 2026-11-03; `npm audit --omit=dev` reports none). No
+non-breaking fix exists yet; `npm audit fix --force` would downgrade `eslint`
+to 4.0.0 and `shadcn` to 1.0.0.
+
+| Package | Severity | Reached through | Advisories |
+| --- | --- | --- | --- |
+| `minimatch` | moderate | `eslint`, `eslint-config-next` plugins, `typescript-eslint`, `shadcn` → `ts-morph` | GHSA-g3hv-75wg-m249 |
+| `deepmerge` | low | `shadcn` → `@shadcn/registry` | GHSA-gcqx-w48m-w2h4 |
+
 Historical record: the table below lists the dev-only advisories found on
-2026-10-25. All of them were cleared that day by `npm audit fix`, and
-`npm audit` currently reports none. If any reappear, the policy above applies.
+2026-10-25. All of them were cleared that day by `npm audit fix`.
 
 | Package | Severity | Reached through | Advisories |
 | --- | --- | --- | --- |
@@ -145,6 +153,7 @@ Historical record: the table below lists the dev-only advisories found on
 | `shadcn` | high | direct (dev) | inherits the `zod` advisory |
 
 Runtime advisories (anything `npm audit --omit=dev` reports) are never accepted
-here — fix them. For example, `next` and `eslint-config-next` were bumped from
-16.4.0 to 16.4.3 for GHSA-2464-fhr4-w9xw, GHSA-p3m5-59mp-jv5r, and
-GHSA-673q-mjm6-r5xr. Keep the two versions in lockstep.
+here — fix them. For example, `next` and `eslint-config-next` were bumped off the
+vulnerable 16.4.0 baseline (to 16.4.3, then 16.4.5) for GHSA-2464-fhr4-w9xw,
+GHSA-p3m5-59mp-jv5r, and GHSA-673q-mjm6-r5xr, all fixed in 16.4.1. Keep the
+two versions in lockstep.
