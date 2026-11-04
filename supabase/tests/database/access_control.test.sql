@@ -8,7 +8,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(65);
+select plan(69);
 
 -------------------------------------------------------------------------------
 -- Fixtures (as postgres, so RLS does not apply)
@@ -43,9 +43,12 @@ insert into public.volunteers (id, user_id, status) values
 insert into public.events (id, organization_id, status, title, starts_at, ends_at) values
   ('40000000-0000-0000-0000-0000000000a1', '10000000-0000-0000-0000-00000000000a', 'published', 'A published', now() + interval '1 day', now() + interval '1 day 2 hours'),
   ('40000000-0000-0000-0000-0000000000a2', '10000000-0000-0000-0000-00000000000a', 'draft',     'A draft',     now() + interval '2 days', now() + interval '2 days 2 hours'),
+  ('40000000-0000-0000-0000-0000000000a3', '10000000-0000-0000-0000-00000000000a', 'completed', 'A completed', now() - interval '7 days', now() - interval '7 days' + interval '2 hours'),
+  ('40000000-0000-0000-0000-0000000000a4', '10000000-0000-0000-0000-00000000000a', 'cancelled', 'A cancelled', now() + interval '3 days', now() + interval '3 days 2 hours'),
   ('40000000-0000-0000-0000-0000000000b1', '10000000-0000-0000-0000-00000000000b', 'published', 'B published', now() + interval '1 day', now() + interval '1 day 2 hours');
 
 insert into public.registrations (id, event_id, volunteer_id) values
+  ('50000000-0000-0000-0000-0000000000a3', '40000000-0000-0000-0000-0000000000a3', '30000000-0000-0000-0000-0000000000a1'),
   ('50000000-0000-0000-0000-0000000000b1', '40000000-0000-0000-0000-0000000000b1', '30000000-0000-0000-0000-0000000000b1');
 
 -------------------------------------------------------------------------------
@@ -111,11 +114,12 @@ select results_eq('select id from public.users',
 select results_eq('select id from public.volunteers',
   $$ values ('30000000-0000-0000-0000-0000000000a1'::uuid) $$,
   'volunteer sees only their own volunteer profile, not org A or org B peers');
-select results_eq('select id from public.events',
-  $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid) $$,
-  'volunteer sees published events in their org only (no drafts, no org B)');
-select is_empty('select id from public.registrations',
-  'volunteer cannot see org B registrations');
+select set_eq('select id from public.events',
+  $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid), ('40000000-0000-0000-0000-0000000000a3') $$,
+  'volunteer sees published events plus past events they registered for, in their org only');
+select results_eq('select id from public.registrations',
+  $$ values ('50000000-0000-0000-0000-0000000000a3'::uuid) $$,
+  'volunteer sees their own registrations, including for a completed event, and none from org B');
 
 select lives_ok(
   $$ update public.users set full_name = 'New Name' where id = '20000000-0000-0000-0000-0000000000a1' $$,
@@ -259,10 +263,11 @@ select set_eq('select user_id from public.volunteers',
             ('20000000-0000-0000-0000-0000000000a3'), ('20000000-0000-0000-0000-0000000000a4') $$,
   'admin sees every volunteer in org A and none in org B');
 select set_eq('select id from public.events',
-  $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid), ('40000000-0000-0000-0000-0000000000a2') $$,
-  'admin sees draft and published events in org A only');
-select results_eq('select event_id from public.registrations',
-  $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid) $$,
+  $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid), ('40000000-0000-0000-0000-0000000000a2'),
+            ('40000000-0000-0000-0000-0000000000a3'), ('40000000-0000-0000-0000-0000000000a4') $$,
+  'admin sees every event in org A, whatever its status, and none in org B');
+select set_eq('select event_id from public.registrations',
+  $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid), ('40000000-0000-0000-0000-0000000000a3') $$,
   'admin sees org A registrations only');
 
 select lives_ok(
@@ -365,6 +370,35 @@ select results_eq('select id from public.events',
 select results_eq('select id from public.registrations',
   $$ values ('50000000-0000-0000-0000-0000000000b1'::uuid) $$,
   'org B admin sees only org B registrations');
+
+reset role;
+
+-------------------------------------------------------------------------------
+-- A cancelled event stays visible to the volunteers who registered for it
+-------------------------------------------------------------------------------
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a0", "role": "authenticated"}';
+
+select lives_ok(
+  $$ update public.events set status = 'cancelled' where id = '40000000-0000-0000-0000-0000000000a1' $$,
+  'admin can cancel an event');
+
+set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a1", "role": "authenticated"}';
+
+select results_eq(
+  $$ select status::text from public.events where id = '40000000-0000-0000-0000-0000000000a1' $$,
+  $$ values ('cancelled') $$,
+  'volunteer still sees a cancelled event they registered for');
+select isnt_empty(
+  $$ select id from public.registrations where event_id = '40000000-0000-0000-0000-0000000000a1' $$,
+  'volunteer still sees their registration after the event is cancelled');
+
+set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a3", "role": "authenticated"}';
+
+select is_empty(
+  $$ select id from public.events where status <> 'published' $$,
+  'volunteers who did not register see no cancelled, completed, or draft events');
 
 reset role;
 
