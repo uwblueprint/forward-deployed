@@ -5,7 +5,9 @@
 --   Logged out (anon): no access to anything.
 --   Volunteer: own user row, own volunteer profile, published events in their
 --     organization, own registrations (create/cancel only when approved).
---   Admin: everything inside their own organization, nothing outside it.
+--   Admin: everything inside their own organization, nothing outside it,
+--     including editing volunteer profiles. Only the volunteer can record
+--     their own consent, and nobody can change their own role or review status.
 
 -------------------------------------------------------------------------------
 -- 1. Grants
@@ -198,8 +200,8 @@ begin
     if not (select public.is_admin()) then
       raise exception 'Only admins can update other users' using errcode = '42501';
     end if;
-    if (to_jsonb(new) - 'role') is distinct from (to_jsonb(old) - 'role') then
-      raise exception 'Admins can only change the role of other users' using errcode = '42501';
+    if (to_jsonb(new) - array['role', 'full_name']) is distinct from (to_jsonb(old) - array['role', 'full_name']) then
+      raise exception 'Admins can only change the name and role of other users' using errcode = '42501';
     end if;
   end if;
 
@@ -216,8 +218,6 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
-declare
-  review_columns constant text[] := array['status', 'rejection_reason', 'reviewed_at'];
 begin
   if current_user in ('postgres', 'service_role', 'supabase_admin') then
     return new;
@@ -232,9 +232,8 @@ begin
     if not (select public.is_admin()) then
       raise exception 'Only admins can update other volunteers' using errcode = '42501';
     end if;
-    if (to_jsonb(new) - review_columns) is distinct from (to_jsonb(old) - review_columns) then
-      raise exception 'Admins can only change review fields (status, rejection_reason, reviewed_at)'
-        using errcode = '42501';
+    if new.consent_accepted_at is distinct from old.consent_accepted_at then
+      raise exception 'Only the volunteer can record their own consent' using errcode = '42501';
     end if;
   end if;
 

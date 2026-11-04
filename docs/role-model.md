@@ -80,11 +80,12 @@ admin is created, and how admins invite other admins.
 
 | Column | Who can change it |
 | --- | --- |
-| `users.full_name` | The user themselves |
+| `users.full_name` | The user themselves, or an admin in the same organization |
 | `users.role` | An admin in the same organization, for other users only |
 | `users.organization_id` | Server only (secret key) |
 | `users.email` | Nobody directly; see the email rule below |
-| `volunteers` profile fields | The volunteer themselves |
+| `volunteers` profile fields | The volunteer themselves, or an admin in the same organization |
+| `volunteers.consent_accepted_at` | The volunteer themselves only |
 | `volunteers.status`, `rejection_reason`, `reviewed_at` | An admin in the same organization |
 | `organizations.name` | Admins of that organization |
 | `events` fields except `organization_id` | Admins of that organization |
@@ -111,7 +112,5 @@ form should show the signed-in email as read-only rather than collect it.
 
 - Volunteers can read only `published` events. Event history will need them to
   see completed events they registered for.
-- Admins can approve or reject volunteers but cannot edit a volunteer's profile.
-  The CRM design asks for profile editing.
 - Event capacity is not enforced when registering.
 - Generated TypeScript types come after the schema lands (FOR-21).

@@ -8,7 +8,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(62);
+select plan(65);
 
 -------------------------------------------------------------------------------
 -- Fixtures (as postgres, so RLS does not apply)
@@ -273,10 +273,15 @@ select is(
   (select status::text from public.volunteers where id = '30000000-0000-0000-0000-0000000000a2'),
   'approved',
   'approval is saved');
+select results_eq(
+  $$ update public.volunteers set phone = '519-555-0199', skills = '{Driving}'
+     where id = '30000000-0000-0000-0000-0000000000a2' returning phone $$,
+  $$ values ('519-555-0199') $$,
+  'admin can edit a volunteer''s profile in their org');
 select throws_ok(
-  $$ update public.volunteers set phone = '000' where id = '30000000-0000-0000-0000-0000000000a2' $$,
-  '42501', 'Admins can only change review fields (status, rejection_reason, reviewed_at)',
-  'admin cannot edit a volunteer''s profile fields');
+  $$ update public.volunteers set consent_accepted_at = now() where id = '30000000-0000-0000-0000-0000000000a2' $$,
+  '42501', 'Only the volunteer can record their own consent',
+  'admin cannot record consent for a volunteer');
 select throws_ok(
   $$ update public.users set role = 'volunteer' where id = '20000000-0000-0000-0000-0000000000a0' $$,
   '42501', 'You cannot change your own role',
@@ -285,10 +290,10 @@ select results_eq(
   $$ update public.users set role = 'admin' where id = '20000000-0000-0000-0000-0000000000a4' returning role::text $$,
   $$ values ('admin') $$,
   'admin can change another org A user''s role');
-select throws_ok(
-  $$ update public.users set full_name = 'x' where id = '20000000-0000-0000-0000-0000000000a1' $$,
-  '42501', 'Admins can only change the role of other users',
-  'admin cannot edit another user''s name');
+select results_eq(
+  $$ update public.users set full_name = 'Edited By Admin' where id = '20000000-0000-0000-0000-0000000000a1' returning full_name $$,
+  $$ values ('Edited By Admin') $$,
+  'admin can edit the name of a user in their org');
 select throws_ok(
   $$ update public.users set organization_id = '10000000-0000-0000-0000-00000000000b' where id = '20000000-0000-0000-0000-0000000000a1' $$,
   '42501', null,
@@ -312,6 +317,12 @@ select is_empty(
 select is_empty(
   $$ update public.volunteers set status = 'rejected' where id = '30000000-0000-0000-0000-0000000000b1' returning id $$,
   'admin cannot review an org B volunteer');
+select is_empty(
+  $$ update public.volunteers set phone = '000' where id = '30000000-0000-0000-0000-0000000000b1' returning id $$,
+  'admin cannot edit an org B volunteer''s profile');
+select is_empty(
+  $$ update public.users set full_name = 'x' where id = '20000000-0000-0000-0000-0000000000b1' returning id $$,
+  'admin cannot edit an org B user''s name');
 select throws_ok(
   $$ insert into public.registrations (event_id, volunteer_id) values ('40000000-0000-0000-0000-0000000000a1', '30000000-0000-0000-0000-0000000000b1') $$,
   '42501', null,
