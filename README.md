@@ -80,6 +80,35 @@ Anything not exported from a feature's `index.ts` is private to that feature.
 Code shared across two or more features belongs in `src/components/common` or
 `src/lib` instead.
 
+## Environment variables
+
+Copy `.env.example` to `.env.local` and fill in the values. `.env.local` is
+gitignored; never commit real keys. Ask the Supabase owner for the values
+through the team's secure channel, not Slack plaintext.
+
+| Variable | Where it runs | Notes |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Browser and server | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser and server | Holds the publishable key (`sb_publishable_...`) |
+| `SUPABASE_SECRET_KEY` | Server-only scripts | Secret key (`sb_secret_...`); bypasses RLS |
+
+## Accounts & ownership
+
+| Service | Owners | Other members |
+| --- | --- | --- |
+| Supabase (org "UW Blueprint", Blueprint-controlled account) | Allan Yang, Rishab (TL) | Samay, Ethan, Angus (Developer) |
+| GitHub (`uwblueprint/forward-deployed`) | TBD | TBD |
+| Vercel | TBD | TBD |
+
+Secrets (Supabase keys, database password) live in: TBD.
+
+To transfer ownership of an account:
+
+1. An existing owner invites the new owner with the Owner role.
+2. The new owner accepts the invite and confirms they can open the project settings.
+3. Only then may the old owner leave or be downgraded. Every account must keep at least two owners.
+4. Update the table above in the same pull request.
+
 ## Installed UI primitives
 
 `button`, `input`, `label`, `card`, `dialog`, `dropdown-menu`, `select`,
