@@ -157,3 +157,19 @@ here — fix them. For example, `next` and `eslint-config-next` were bumped off 
 vulnerable 16.4.0 baseline (to 16.4.3, then 16.4.5) for GHSA-2464-fhr4-w9xw,
 GHSA-p3m5-59mp-jv5r, and GHSA-673q-mjm6-r5xr, all fixed in 16.4.1. Keep the
 two versions in lockstep.
+
+## Deployment
+
+Hosted on the Vercel project `forward-deployed`, owned by Samay Kapadia.
+
+Pushes to `main` deploy to production. Every pull request gets a preview
+deployment, with the URL posted as a comment on the PR.
+
+Deployments run through `.github/workflows/vercel.yml` using the Vercel CLI,
+authenticated with the GitHub Actions secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`,
+and `VERCEL_PROJECT_ID`.
+
+To update environment variables, change them in the Vercel project settings,
+then redeploy — either by re-running the latest `main` workflow run in the
+Actions tab, or by pushing a new commit. Changes only apply to new
+deployments.
