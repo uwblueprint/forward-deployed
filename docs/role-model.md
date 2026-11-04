@@ -59,6 +59,10 @@ separate from the role.
 Only an admin in the same organization can change `status`,
 `rejection_reason`, and `reviewed_at`. Nobody can review their own profile.
 
+Volunteers always see their own registrations. They can also still see an
+event they registered for after it is cancelled or completed, so their
+history stays visible. Draft events are admin-only.
+
 ## How users are created and get an organization
 
 *Provisional.*
@@ -90,7 +94,7 @@ admin is created, and how admins invite other admins.
 | `organizations.name` | Admins of that organization |
 | `events` fields except `organization_id` | Admins of that organization |
 | `registrations.status` | The approved volunteer for their own registration, or an admin of the event's organization |
-| Every `id`, `created_at`, `user_id`, `organization_id`, `event_id`, `volunteer_id` | Set once on insert, never changed |
+| Every `id` and `created_at`, plus `volunteers.user_id`, `events.organization_id`, `registrations.event_id`, and `registrations.volunteer_id` | Set once on insert, never changed |
 
 Three layers enforce this:
 
@@ -110,7 +114,5 @@ form should show the signed-in email as read-only rather than collect it.
 
 ## Known gaps
 
-- Volunteers can read only `published` events. Event history will need them to
-  see completed events they registered for.
 - Event capacity is not enforced when registering.
 - Generated TypeScript types come after the schema lands (FOR-21).
