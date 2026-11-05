@@ -1,3 +1,20 @@
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+async function RequireSession({ children }: { children: React.ReactNode }) {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  return children;
+}
+
 export default function VolunteerLayout({
   children,
 }: {
@@ -6,7 +23,9 @@ export default function VolunteerLayout({
   return (
     <div>
       <p>Volunteer area</p>
-      {children}
+      <Suspense>
+        <RequireSession>{children}</RequireSession>
+      </Suspense>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { getSupabaseEnv } from "./env";
 
 /**
  * Creates a Supabase client for use in the browser (Client Components, event
@@ -21,8 +22,7 @@ import { createBrowserClient } from "@supabase/ssr";
  * Handlers; use `createServerSupabaseClient` from `./server` there instead.
  */
 export function createBrowserSupabaseClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
+  const { url, anonKey } = getSupabaseEnv();
+
+  return createBrowserClient(url, anonKey);
 }
