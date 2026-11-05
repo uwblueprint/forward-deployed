@@ -1,148 +1,148 @@
--- Access control for FOR-23: grants, helper functions, auth triggers, and RLS.
--- Provisional role model; see docs/role-model.md.
---
--- Summary
---   Logged out (anon): no access to anything.
---   Volunteer: own user row, own volunteer profile, published events in their
---     organization, own registrations (create/cancel only when approved).
---   Admin: everything inside their own organization, nothing outside it,
---     including editing volunteer profiles. Only the volunteer can record
---     their own consent, and nobody can change their own role or review status.
+-- Access rules (FOR-23): grants, helpers, triggers, RLS policies.
+-- Who can do what is summarized in docs/role-model.md.
 
 -------------------------------------------------------------------------------
--- 1. Grants
---
--- auto_expose_new_tables is off, so the Data API can only reach what is
--- granted here. Column lists on insert/update keep id, organization_id, email,
--- user_id, and created_at read-only for every signed-in user. Which side may
--- change role and review fields is enforced by the guard triggers in step 4.
+-- Grants. auto_expose_new_tables is off, so the API reaches only what is
+-- granted here. anon gets nothing. Column lists lock ids, organization_id,
+-- user_id, email, and volunteers.status for every signed-in user.
 -------------------------------------------------------------------------------
 
 revoke all on table
-  public.organizations, public.users, public.volunteers, public.events, public.registrations
+  public.organizations, public.users, public.volunteers, public.applications,
+  public.events, public.registrations, public.custom_fields
   from anon, authenticated;
 
--- Server-only key (seed script). Bypasses RLS but still needs table grants.
 grant select, insert, update, delete on table
-  public.organizations, public.users, public.volunteers, public.events, public.registrations
+  public.organizations, public.users, public.volunteers, public.applications,
+  public.events, public.registrations, public.custom_fields
   to service_role;
 
 grant select on table public.organizations to authenticated;
-grant update (name) on table public.organizations to authenticated;
+grant update (name, logo_url, primary_color, secondary_color, settings) on table public.organizations to authenticated;
 
 grant select on table public.users to authenticated;
-grant update (full_name, role) on table public.users to authenticated;
+grant update (first_name, last_name, role) on table public.users to authenticated;
 
 grant select on table public.volunteers to authenticated;
 grant insert (
   user_id, phone, location, availability_days, shift_preference, skills,
-  emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
-  consent_accepted_at
+  emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, consent_accepted_at
 ) on table public.volunteers to authenticated;
 grant update (
   phone, location, availability_days, shift_preference, skills,
-  emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
-  consent_accepted_at,
-  status, rejection_reason, reviewed_at
+  emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, consent_accepted_at
 ) on table public.volunteers to authenticated;
+
+grant select on table public.applications to authenticated;
+grant insert (volunteer_id, responses) on table public.applications to authenticated;
+grant update (status, rejection_reason) on table public.applications to authenticated;
 
 grant select, delete on table public.events to authenticated;
 grant insert (
-  organization_id, status, title, description, category, location, starts_at, ends_at, capacity
+  organization_id, status, title, description, category, location, requirements, starts_at, ends_at, capacity
 ) on table public.events to authenticated;
 grant update (
-  status, title, description, category, location, starts_at, ends_at, capacity
+  status, title, description, category, location, requirements, starts_at, ends_at, capacity
 ) on table public.events to authenticated;
 
 grant select, delete on table public.registrations to authenticated;
-grant insert (event_id, volunteer_id, status) on table public.registrations to authenticated;
-grant update (status) on table public.registrations to authenticated;
+grant insert (event_id, volunteer_id, status, custom_responses) on table public.registrations to authenticated;
+grant update (status, attendance_status, custom_responses) on table public.registrations to authenticated;
+
+grant select, delete on table public.custom_fields to authenticated;
+grant insert (organization_id, entity_type, field_name, field_type, required, options, position)
+  on table public.custom_fields to authenticated;
+grant update (entity_type, field_name, field_type, required, options, position)
+  on table public.custom_fields to authenticated;
 
 -------------------------------------------------------------------------------
--- 2. Helper functions
---
--- security definer so policies can look up the caller without triggering RLS
--- on the same tables (which would recurse). Each one only answers questions
--- about the caller. Call them as (select public.fn()) in policies so Postgres
--- evaluates them once per statement instead of once per row.
+-- Helpers. In the private schema so they are not API endpoints. security
+-- definer so policies can look things up without recursive RLS. Each one only
+-- answers questions about the caller.
 -------------------------------------------------------------------------------
 
-create function public.current_org_id()
-returns uuid
-language sql
-stable
-security definer
-set search_path = ''
+grant usage on schema private to authenticated, service_role;
+
+create function private.current_org_id() returns uuid
+language sql stable security definer set search_path = ''
+as $$ select organization_id from public.users where id = (select auth.uid()) $$;
+
+create function private.is_admin() returns boolean
+language sql stable security definer set search_path = ''
+as $$ select exists (select 1 from public.users where id = (select auth.uid()) and role = 'admin') $$;
+
+-- Staff = admins and managers. Managers run volunteers, applications, events,
+-- and registrations; only admins change roles, organization settings, and custom fields.
+create function private.is_staff() returns boolean
+language sql stable security definer set search_path = ''
+as $$ select exists (select 1 from public.users where id = (select auth.uid()) and role in ('admin', 'manager')) $$;
+
+create function private.current_volunteer_id() returns uuid
+language sql stable security definer set search_path = ''
+as $$ select id from public.volunteers where user_id = (select auth.uid()) $$;
+
+create function private.is_approved_volunteer() returns boolean
+language sql stable security definer set search_path = ''
+as $$ select exists (select 1 from public.volunteers where user_id = (select auth.uid()) and status = 'approved') $$;
+
+-- The event's status if it belongs to the caller's organization, otherwise null.
+create function private.my_org_event_status(target_event_id uuid) returns public.event_status
+language sql stable security definer set search_path = ''
 as $$
-  select organization_id from public.users where id = (select auth.uid());
+  select e.status from public.events e
+  join public.users u on u.organization_id = e.organization_id
+  where e.id = target_event_id and u.id = (select auth.uid())
 $$;
 
-create function public.is_admin()
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
+create function private.my_org_has_user(target_user_id uuid) returns boolean
+language sql stable security definer set search_path = ''
 as $$
   select exists (
-    select 1 from public.users where id = (select auth.uid()) and role = 'admin'
-  );
+    select 1 from public.users target
+    join public.users me on me.organization_id = target.organization_id
+    where target.id = target_user_id and me.id = (select auth.uid())
+  )
 $$;
 
-create function public.current_volunteer_id()
-returns uuid
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select id from public.volunteers where user_id = (select auth.uid());
-$$;
-
-create function public.is_approved_volunteer()
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
+create function private.my_org_has_volunteer(target_volunteer_id uuid) returns boolean
+language sql stable security definer set search_path = ''
 as $$
   select exists (
-    select 1 from public.volunteers where user_id = (select auth.uid()) and status = 'approved'
-  );
+    select 1 from public.volunteers v
+    where v.id = target_volunteer_id and private.my_org_has_user(v.user_id)
+  )
 $$;
 
-revoke execute on function
-  public.current_org_id(), public.is_admin(), public.current_volunteer_id(), public.is_approved_volunteer()
-  from public, anon;
-grant execute on function
-  public.current_org_id(), public.is_admin(), public.current_volunteer_id(), public.is_approved_volunteer()
-  to authenticated, service_role;
-
--------------------------------------------------------------------------------
--- 3. Auth triggers
---
--- Every auth.users row gets a public.users row. Role always starts as
--- 'volunteer' and organization_id as null. Never read role or organization
--- from signup metadata: the client controls that metadata.
--- auth.users is the source of truth for email; public.users.email mirrors it.
--------------------------------------------------------------------------------
-
-create function public.handle_new_auth_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
+create function private.is_registered_for(target_event_id uuid) returns boolean
+language sql stable security definer set search_path = ''
 as $$
+  select exists (
+    select 1 from public.registrations r
+    join public.volunteers v on v.id = r.volunteer_id
+    where r.event_id = target_event_id and v.user_id = (select auth.uid())
+  )
+$$;
+
+-------------------------------------------------------------------------------
+-- Triggers. Trusted server roles (migrations, seed, auth triggers) skip the
+-- checks below; signed-in users do not.
+-------------------------------------------------------------------------------
+
+-- New auth account -> public.users row. Role and organization are never read
+-- from signup metadata, because the browser controls it.
+create function private.handle_new_auth_user() returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  meta jsonb := coalesce(new.raw_user_meta_data, '{}');
+  full_name text := trim(coalesce(meta ->> 'full_name', meta ->> 'name', ''));
 begin
-  insert into public.users (id, email, full_name)
+  insert into public.users (id, email, first_name, last_name)
   values (
     new.id,
     new.email,
-    nullif(trim(coalesce(
-      new.raw_user_meta_data ->> 'full_name',
-      new.raw_user_meta_data ->> 'name',
-      ''
-    )), '')
+    nullif(coalesce(meta ->> 'first_name', meta ->> 'given_name', split_part(full_name, ' ', 1)), ''),
+    nullif(coalesce(meta ->> 'last_name', meta ->> 'family_name', trim(substr(full_name, length(split_part(full_name, ' ', 1)) + 1))), '')
   );
   return new;
 end;
@@ -150,13 +150,10 @@ $$;
 
 create trigger on_auth_user_created
   after insert on auth.users
-  for each row execute function public.handle_new_auth_user();
+  for each row execute function private.handle_new_auth_user();
 
-create function public.handle_auth_user_email_change()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
+create function private.handle_auth_user_email_change() returns trigger
+language plpgsql security definer set search_path = ''
 as $$
 begin
   update public.users set email = new.email where id = new.id;
@@ -166,298 +163,247 @@ $$;
 
 create trigger on_auth_user_email_changed
   after update of email on auth.users
-  for each row
-  when (old.email is distinct from new.email)
-  execute function public.handle_auth_user_email_change();
+  for each row when (old.email is distinct from new.email)
+  execute function private.handle_auth_user_email_change();
 
-revoke execute on function
-  public.handle_new_auth_user(), public.handle_auth_user_email_change()
-  from public, anon, authenticated;
-
--------------------------------------------------------------------------------
--- 4. Guard triggers
---
--- Column grants apply to the whole authenticated role, so they cannot tell a
--- volunteer from an admin. These triggers enforce who may change which
--- columns. Trusted server roles (migrations, seed, auth triggers) skip them.
--------------------------------------------------------------------------------
-
-create function public.guard_users_update()
-returns trigger
-language plpgsql
-set search_path = ''
+create function private.guard_users_update() returns trigger
+language plpgsql set search_path = ''
 as $$
 begin
   if current_user in ('postgres', 'service_role', 'supabase_admin') then
     return new;
   end if;
-
-  if old.id = (select auth.uid()) then
-    if new.role is distinct from old.role then
+  if new.role is distinct from old.role then
+    if old.id = (select auth.uid()) then
       raise exception 'You cannot change your own role' using errcode = '42501';
     end if;
-  else
-    if not (select public.is_admin()) then
-      raise exception 'Only admins can update other users' using errcode = '42501';
-    end if;
-    if (to_jsonb(new) - array['role', 'full_name']) is distinct from (to_jsonb(old) - array['role', 'full_name']) then
-      raise exception 'Admins can only change the name and role of other users' using errcode = '42501';
+    if not (select private.is_admin()) then
+      raise exception 'Only admins can change roles' using errcode = '42501';
     end if;
   end if;
-
   return new;
 end;
 $$;
 
 create trigger guard_users_update
   before update on public.users
-  for each row execute function public.guard_users_update();
+  for each row execute function private.guard_users_update();
 
-create function public.guard_volunteers_update()
-returns trigger
-language plpgsql
-set search_path = ''
+-- Only the volunteer records their own consent, and the database sets the time.
+create function private.guard_volunteer_consent() returns trigger
+language plpgsql set search_path = ''
 as $$
 begin
   if current_user in ('postgres', 'service_role', 'supabase_admin') then
     return new;
   end if;
-
-  if old.user_id = (select auth.uid()) then
-    if (new.status, new.rejection_reason, new.reviewed_at)
-       is distinct from (old.status, old.rejection_reason, old.reviewed_at) then
-      raise exception 'You cannot change your own review status' using errcode = '42501';
-    end if;
-  else
-    if not (select public.is_admin()) then
-      raise exception 'Only admins can update other volunteers' using errcode = '42501';
-    end if;
-    if new.consent_accepted_at is distinct from old.consent_accepted_at then
-      raise exception 'Only the volunteer can record their own consent' using errcode = '42501';
-    end if;
+  if tg_op = 'UPDATE' and new.consent_accepted_at is distinct from old.consent_accepted_at
+     and old.user_id <> (select auth.uid()) then
+    raise exception 'Only the volunteer can record their own consent' using errcode = '42501';
   end if;
-
+  if new.consent_accepted_at is not null
+     and (tg_op = 'INSERT' or new.consent_accepted_at is distinct from old.consent_accepted_at) then
+    new.consent_accepted_at = now();
+  end if;
   return new;
 end;
 $$;
 
-create trigger guard_volunteers_update
-  before update on public.volunteers
-  for each row execute function public.guard_volunteers_update();
+create trigger guard_volunteer_consent
+  before insert or update on public.volunteers
+  for each row execute function private.guard_volunteer_consent();
 
-revoke execute on function
-  public.guard_users_update(), public.guard_volunteers_update()
-  from public, anon, authenticated;
+-- Reviews are stamped by the database; nobody reviews their own application.
+create function private.review_application() returns trigger
+language plpgsql set search_path = ''
+as $$
+begin
+  if current_user in ('postgres', 'service_role', 'supabase_admin') then
+    return new;
+  end if;
+  if exists (select 1 from public.volunteers where id = old.volunteer_id and user_id = (select auth.uid())) then
+    raise exception 'You cannot review your own application' using errcode = '42501';
+  end if;
+  if new.status is distinct from old.status then
+    new.reviewed_by = (select auth.uid());
+    new.reviewed_at = now();
+  end if;
+  if new.status = 'approved' then
+    new.rejection_reason = null;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger review_application
+  before update on public.applications
+  for each row execute function private.review_application();
+
+-- volunteers.status always equals the latest application's status.
+create function private.sync_volunteer_status() returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  -- The row just written wins unless a strictly newer application exists.
+  update public.volunteers
+  set status = new.status
+  where id = new.volunteer_id
+    and status is distinct from new.status
+    and not exists (
+      select 1 from public.applications a
+      where a.volunteer_id = new.volunteer_id and a.id <> new.id and a.submitted_at > new.submitted_at
+    );
+  return new;
+end;
+$$;
+
+create trigger sync_volunteer_status
+  after insert or update of status on public.applications
+  for each row execute function private.sync_volunteer_status();
+
+-- Volunteers can only register or cancel; attendance and answers are staff edits.
+create function private.guard_registrations_update() returns trigger
+language plpgsql set search_path = ''
+as $$
+begin
+  if current_user in ('postgres', 'service_role', 'supabase_admin') or (select private.is_staff()) then
+    return new;
+  end if;
+  if (new.attendance_status, new.custom_responses) is distinct from (old.attendance_status, old.custom_responses) then
+    raise exception 'Volunteers can only change the status of their registration' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger guard_registrations_update
+  before update on public.registrations
+  for each row execute function private.guard_registrations_update();
+
+revoke execute on all functions in schema private from public, anon;
+grant execute on all functions in schema private to authenticated, service_role;
 
 -------------------------------------------------------------------------------
--- 5. Row Level Security policies
---
--- RLS is already enabled on every table (first migration). One policy per
--- table and command; each branch of an "or" is one side of the access table.
--- All policies are "to authenticated", so anon matches none of them.
+-- RLS policies. One per table and command, all "to authenticated", so anon
+-- matches none. Nobody sees anything outside their own organization.
 -------------------------------------------------------------------------------
-
--- organizations ---------------------------------------------------------------
 
 create policy "organizations: members read own"
   on public.organizations for select to authenticated
-  using (id = (select public.current_org_id()));
+  using (id = (select private.current_org_id()));
 
 create policy "organizations: admins update own"
   on public.organizations for update to authenticated
-  using ((select public.is_admin()) and id = (select public.current_org_id()))
-  with check ((select public.is_admin()) and id = (select public.current_org_id()));
+  using ((select private.is_admin()) and id = (select private.current_org_id()))
+  with check ((select private.is_admin()) and id = (select private.current_org_id()));
 
--- users -----------------------------------------------------------------------
-
-create policy "users: read self, admins read own org"
+create policy "users: read self, staff read own org"
   on public.users for select to authenticated
-  using (
-    id = (select auth.uid())
-    or ((select public.is_admin()) and organization_id = (select public.current_org_id()))
-  );
+  using (id = (select auth.uid()) or ((select private.is_staff()) and organization_id = (select private.current_org_id())));
 
-create policy "users: update self, admins update own org"
+create policy "users: update self, staff update own org"
   on public.users for update to authenticated
-  using (
-    id = (select auth.uid())
-    or ((select public.is_admin()) and organization_id = (select public.current_org_id()))
-  )
-  with check (
-    id = (select auth.uid())
-    or ((select public.is_admin()) and organization_id = (select public.current_org_id()))
-  );
+  using (id = (select auth.uid()) or ((select private.is_staff()) and organization_id = (select private.current_org_id())))
+  with check (id = (select auth.uid()) or ((select private.is_staff()) and organization_id = (select private.current_org_id())));
 
--- volunteers ------------------------------------------------------------------
-
-create policy "volunteers: read self, admins read own org"
+create policy "volunteers: read self, staff read own org"
   on public.volunteers for select to authenticated
-  using (
-    user_id = (select auth.uid())
-    or (
-      (select public.is_admin())
-      and exists (
-        select 1 from public.users u
-        where u.id = volunteers.user_id
-          and u.organization_id = (select public.current_org_id())
-      )
-    )
-  );
+  using (user_id = (select auth.uid()) or ((select private.is_staff()) and private.my_org_has_user(user_id)));
 
 create policy "volunteers: create own profile"
   on public.volunteers for insert to authenticated
   with check (user_id = (select auth.uid()));
 
-create policy "volunteers: update self, admins update own org"
+create policy "volunteers: update self, staff update own org"
   on public.volunteers for update to authenticated
-  using (
-    user_id = (select auth.uid())
-    or (
-      (select public.is_admin())
-      and exists (
-        select 1 from public.users u
-        where u.id = volunteers.user_id
-          and u.organization_id = (select public.current_org_id())
-      )
-    )
-  )
-  with check (
-    user_id = (select auth.uid())
-    or (
-      (select public.is_admin())
-      and exists (
-        select 1 from public.users u
-        where u.id = volunteers.user_id
-          and u.organization_id = (select public.current_org_id())
-      )
-    )
-  );
+  using (user_id = (select auth.uid()) or ((select private.is_staff()) and private.my_org_has_user(user_id)))
+  with check (user_id = (select auth.uid()) or ((select private.is_staff()) and private.my_org_has_user(user_id)));
 
--- events ----------------------------------------------------------------------
+create policy "applications: read own, staff read own org"
+  on public.applications for select to authenticated
+  using (volunteer_id = (select private.current_volunteer_id()) or ((select private.is_staff()) and private.my_org_has_volunteer(volunteer_id)));
 
-create policy "events: volunteers read published, admins read all"
+-- Apply, or reapply after a rejection. The unique index blocks a second open application.
+create policy "applications: volunteers apply"
+  on public.applications for insert to authenticated
+  with check (volunteer_id = (select private.current_volunteer_id()) and not (select private.is_approved_volunteer()));
+
+create policy "applications: staff review own org"
+  on public.applications for update to authenticated
+  using ((select private.is_staff()) and private.my_org_has_volunteer(volunteer_id))
+  with check ((select private.is_staff()) and private.my_org_has_volunteer(volunteer_id));
+
+-- Volunteers see published events, plus non-draft events they registered for (their history).
+create policy "events: read published or registered, staff read all"
   on public.events for select to authenticated
   using (
-    organization_id = (select public.current_org_id())
-    and (status = 'published' or (select public.is_admin()))
+    organization_id = (select private.current_org_id())
+    and (status = 'published' or (select private.is_staff()) or (status <> 'draft' and private.is_registered_for(id)))
   );
 
-create policy "events: admins create in own org"
+create policy "events: staff create in own org"
   on public.events for insert to authenticated
-  with check ((select public.is_admin()) and organization_id = (select public.current_org_id()));
+  with check ((select private.is_staff()) and organization_id = (select private.current_org_id()));
 
-create policy "events: admins update in own org"
+create policy "events: staff update in own org"
   on public.events for update to authenticated
-  using ((select public.is_admin()) and organization_id = (select public.current_org_id()))
-  with check ((select public.is_admin()) and organization_id = (select public.current_org_id()));
+  using ((select private.is_staff()) and organization_id = (select private.current_org_id()))
+  with check ((select private.is_staff()) and organization_id = (select private.current_org_id()));
 
-create policy "events: admins delete in own org"
+create policy "events: staff delete in own org"
   on public.events for delete to authenticated
-  using ((select public.is_admin()) and organization_id = (select public.current_org_id()));
+  using ((select private.is_staff()) and organization_id = (select private.current_org_id()));
 
--- registrations ---------------------------------------------------------------
-
-create policy "registrations: read own, admins read own org"
+create policy "registrations: read own, staff read own org"
   on public.registrations for select to authenticated
-  using (
-    (
-      registrations.volunteer_id = (select public.current_volunteer_id())
-      and exists (
-        select 1 from public.events e
-        where e.id = registrations.event_id
-          and e.organization_id = (select public.current_org_id())
-      )
-    )
-    or (
-      (select public.is_admin())
-      and exists (
-        select 1 from public.events e
-        where e.id = registrations.event_id
-          and e.organization_id = (select public.current_org_id())
-      )
-    )
-  );
+  using (volunteer_id = (select private.current_volunteer_id()) or ((select private.is_staff()) and private.my_org_event_status(event_id) is not null));
 
-create policy "registrations: approved volunteers or admins create"
+create policy "registrations: approved volunteers or staff create"
   on public.registrations for insert to authenticated
   with check (
     (
-      registrations.volunteer_id = (select public.current_volunteer_id())
-      and (select public.is_approved_volunteer())
-      and registrations.status = 'registered'
-      and exists (
-        select 1 from public.events e
-        where e.id = registrations.event_id
-          and e.status = 'published'
-          and e.organization_id = (select public.current_org_id())
-      )
+      volunteer_id = (select private.current_volunteer_id())
+      and (select private.is_approved_volunteer())
+      and status = 'registered'
+      and private.my_org_event_status(event_id) = 'published'
     )
     or (
-      (select public.is_admin())
-      and exists (
-        select 1 from public.events e
-        where e.id = registrations.event_id
-          and e.organization_id = (select public.current_org_id())
-      )
-      and exists (
-        select 1 from public.volunteers v
-        join public.users u on u.id = v.user_id
-        where v.id = registrations.volunteer_id
-          and u.organization_id = (select public.current_org_id())
-      )
+      (select private.is_staff())
+      and private.my_org_event_status(event_id) is not null
+      and private.my_org_has_volunteer(volunteer_id)
     )
   );
 
-create policy "registrations: approved volunteers or admins update"
+-- Volunteers can always cancel their own registration; re-registering needs
+-- approval and a published event.
+create policy "registrations: volunteers cancel or re-register, staff manage"
   on public.registrations for update to authenticated
-  using (
-    (
-      registrations.volunteer_id = (select public.current_volunteer_id())
-      and (select public.is_approved_volunteer())
-      and exists (
-        select 1 from public.events e
-        where e.id = registrations.event_id
-          and e.status = 'published'
-          and e.organization_id = (select public.current_org_id())
-      )
-    )
-    or (
-      (select public.is_admin())
-      and exists (
-        select 1 from public.events e
-        where e.id = registrations.event_id
-          and e.organization_id = (select public.current_org_id())
-      )
-    )
-  )
+  using (volunteer_id = (select private.current_volunteer_id()) or ((select private.is_staff()) and private.my_org_event_status(event_id) is not null))
   with check (
     (
-      registrations.volunteer_id = (select public.current_volunteer_id())
-      and (select public.is_approved_volunteer())
-      and exists (
-        select 1 from public.events e
-        where e.id = registrations.event_id
-          and e.status = 'published'
-          and e.organization_id = (select public.current_org_id())
-      )
+      volunteer_id = (select private.current_volunteer_id())
+      and (status = 'cancelled' or ((select private.is_approved_volunteer()) and private.my_org_event_status(event_id) = 'published'))
     )
-    or (
-      (select public.is_admin())
-      and exists (
-        select 1 from public.events e
-        where e.id = registrations.event_id
-          and e.organization_id = (select public.current_org_id())
-      )
-    )
+    or ((select private.is_staff()) and private.my_org_event_status(event_id) is not null)
   );
 
-create policy "registrations: admins delete in own org"
+create policy "registrations: staff delete in own org"
   on public.registrations for delete to authenticated
-  using (
-    (select public.is_admin())
-    and exists (
-      select 1 from public.events e
-      where e.id = registrations.event_id
-        and e.organization_id = (select public.current_org_id())
-    )
-  );
+  using ((select private.is_staff()) and private.my_org_event_status(event_id) is not null);
+
+create policy "custom_fields: members read own org"
+  on public.custom_fields for select to authenticated
+  using (organization_id = (select private.current_org_id()));
+
+create policy "custom_fields: admins create in own org"
+  on public.custom_fields for insert to authenticated
+  with check ((select private.is_admin()) and organization_id = (select private.current_org_id()));
+
+create policy "custom_fields: admins update in own org"
+  on public.custom_fields for update to authenticated
+  using ((select private.is_admin()) and organization_id = (select private.current_org_id()))
+  with check ((select private.is_admin()) and organization_id = (select private.current_org_id()));
+
+create policy "custom_fields: admins delete in own org"
+  on public.custom_fields for delete to authenticated
+  using ((select private.is_admin()) and organization_id = (select private.current_org_id()));
