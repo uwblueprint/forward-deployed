@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import { getSupabaseEnv } from "./env";
 
 /**
@@ -34,6 +35,9 @@ import { getSupabaseEnv } from "./env";
  * stale or tampered) session cookie without verifying it.
  */
 export async function createServerSupabaseClient() {
+  // Forces this call to be treated as request-time under Cache Components,
+  // since it reads per-request auth state that must never be cached.
+  await connection();
   const cookieStore = await cookies();
   const { url, anonKey } = getSupabaseEnv();
 
