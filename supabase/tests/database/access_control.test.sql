@@ -6,7 +6,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(106);
+select plan(113);
 
 insert into public.organizations (id, name) values
   ('10000000-0000-0000-0000-00000000000a', 'Org A'),
@@ -59,8 +59,8 @@ insert into public.custom_fields (id, organization_id, entity_type, field_name, 
 
 select is((select count(*) from pg_tables where schemaname = 'public' and not rowsecurity), 0::bigint,
   'RLS is enabled on every public table');
-select is_empty($$ select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' $$,
-  'no functions in the API schema');
+select is((select string_agg(p.proname::text, ',') from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'),
+  'set_user_role', 'set_user_role is the only function in the API schema');
 select results_eq($$ select status::text from public.volunteers where id::text like '30000000-0000-0000-0000-0000000000a_' order by id $$,
   $$ values ('approved'), ('pending'), ('rejected') $$,
   'volunteer status mirrors their latest application');
@@ -87,6 +87,7 @@ select throws_ok('select * from public.events', '42501', null, 'anon cannot read
 select throws_ok('select * from public.registrations', '42501', null, 'anon cannot read registrations');
 select throws_ok('select * from public.custom_fields', '42501', null, 'anon cannot read custom fields');
 select throws_ok('select private.is_admin()', '42501', null, 'anon cannot call helper functions');
+select throws_ok($$ select public.set_user_role('20000000-0000-0000-0000-0000000000a1', 'admin') $$, '42501', null, 'anon cannot change roles');
 reset role;
 
 -- Approved volunteer, org A ------------------------------------------------------
@@ -104,7 +105,7 @@ select results_eq('select id from public.registrations', $$ values ('50000000-00
 select results_eq('select id from public.custom_fields', $$ values ('70000000-0000-0000-0000-0000000000a1'::uuid) $$, 'volunteer sees only their org''s custom fields');
 
 select lives_ok($$ update public.users set first_name = 'New' where id = '20000000-0000-0000-0000-0000000000a1' $$, 'volunteer can edit their name');
-select throws_ok($$ update public.users set role = 'admin' where id = '20000000-0000-0000-0000-0000000000a1' $$, '42501', 'You cannot change your own role', 'volunteer cannot change their role');
+select throws_ok($$ update public.users set role = 'admin' where id = '20000000-0000-0000-0000-0000000000a1' $$, '42501', null, 'volunteer cannot change their role');
 select throws_ok($$ update public.users set organization_id = '10000000-0000-0000-0000-00000000000b' where id = '20000000-0000-0000-0000-0000000000a1' $$, '42501', null, 'volunteer cannot change their org');
 select throws_ok($$ update public.users set email = 'x@example.com' where id = '20000000-0000-0000-0000-0000000000a1' $$, '42501', null, 'volunteer cannot edit the email mirror');
 select throws_ok($$ update public.volunteers set status = 'approved' where id = '30000000-0000-0000-0000-0000000000a1' $$, '42501', null, 'volunteer cannot set their status');
@@ -187,8 +188,11 @@ select lives_ok($$ update public.volunteers set phone = '519-555-0199', skills =
 select throws_ok($$ update public.volunteers set consent_accepted_at = now() where id = '30000000-0000-0000-0000-0000000000a2' $$, '42501', 'Only the volunteer can record their own consent', 'admin cannot record consent for a volunteer');
 select lives_ok($$ update public.volunteers set consent_accepted_at = '2001-01-01', phone = '519-555-0123' where id = '30000000-0000-0000-0000-0000000000a1' $$, 'admin can save a whole profile back');
 select is((select consent_accepted_at from public.volunteers where id = '30000000-0000-0000-0000-0000000000a1'), now(), 'saving a profile back keeps the original consent time');
-select throws_ok($$ update public.users set role = 'volunteer' where id = '20000000-0000-0000-0000-0000000000a0' $$, '42501', 'You cannot change your own role', 'admin cannot change their own role');
-select results_eq($$ update public.users set role = 'manager' where id = '20000000-0000-0000-0000-0000000000a4' returning role::text $$, $$ values ('manager') $$, 'admin can change another user''s role');
+select throws_ok($$ update public.users set role = 'manager' where id = '20000000-0000-0000-0000-0000000000a4' $$, '42501', null, 'role is not writable directly, even by admins');
+select throws_ok($$ select public.set_user_role('20000000-0000-0000-0000-0000000000a0', 'volunteer') $$, '42501', 'You cannot change your own role', 'admin cannot change their own role');
+select throws_ok($$ select public.set_user_role('20000000-0000-0000-0000-0000000000b1', 'admin') $$, '42501', 'User not found in your organization', 'admin cannot change an org B user''s role');
+select lives_ok($$ select public.set_user_role('20000000-0000-0000-0000-0000000000a4', 'manager') $$, 'admin can change another user''s role');
+select is((select role::text from public.users where id = '20000000-0000-0000-0000-0000000000a4'), 'manager', 'the role change is saved');
 select lives_ok($$ update public.users set last_name = 'Edited' where id = '20000000-0000-0000-0000-0000000000a1' $$, 'admin can edit a user''s name');
 select throws_ok($$ update public.users set organization_id = '10000000-0000-0000-0000-00000000000b' where id = '20000000-0000-0000-0000-0000000000a1' $$, '42501', null, 'admin cannot move a user to another org');
 
@@ -218,7 +222,10 @@ select results_eq($$ update public.applications set status = 'rejected', rejecti
   where volunteer_id = '30000000-0000-0000-0000-0000000000a3' and status = 'pending' returning reviewed_by $$,
   $$ values ('20000000-0000-0000-0000-0000000000a5'::uuid) $$, 'manager can review applications');
 select lives_ok($$ insert into public.events (organization_id, title, starts_at, ends_at) values ('10000000-0000-0000-0000-00000000000a', 'Manager event', now(), now() + interval '1 hour') $$, 'manager can create events');
-select throws_ok($$ update public.users set role = 'admin' where id = '20000000-0000-0000-0000-0000000000a1' $$, '42501', 'Only admins can change roles', 'manager cannot change roles');
+select throws_ok($$ select public.set_user_role('20000000-0000-0000-0000-0000000000a1', 'admin') $$, '42501', 'Only admins can change roles', 'manager cannot change roles');
+select lives_ok($$ insert into public.volunteers (user_id) values ('20000000-0000-0000-0000-0000000000a5') $$, 'manager can also have a volunteer profile');
+select lives_ok($$ insert into public.applications (volunteer_id) select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a5' $$, 'manager can apply as a volunteer');
+select is_empty($$ update public.applications set status = 'approved' where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a5') returning id $$, 'staff cannot approve their own application');
 select is_empty($$ update public.organizations set name = 'x' returning id $$, 'manager cannot edit org settings');
 select throws_ok($$ insert into public.custom_fields (organization_id, entity_type, field_name, field_type) values ('10000000-0000-0000-0000-00000000000a', 'application', 'x', 'text') $$, '42501', null, 'manager cannot add custom fields');
 reset role;

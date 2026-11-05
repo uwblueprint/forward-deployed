@@ -4,7 +4,8 @@
 -------------------------------------------------------------------------------
 -- Grants. auto_expose_new_tables is off, so the API reaches only what is
 -- granted here. anon gets nothing. Column lists lock ids, organization_id,
--- user_id, email, and volunteers.status for every signed-in user.
+-- user_id, email, role, and volunteers.status for every signed-in user.
+-- Roles change only through public.set_user_role().
 -------------------------------------------------------------------------------
 
 revoke all on table
@@ -21,7 +22,7 @@ grant select on table public.organizations to authenticated;
 grant update (name, logo_url, primary_color, secondary_color, settings) on table public.organizations to authenticated;
 
 grant select on table public.users to authenticated;
-grant update (first_name, last_name, role) on table public.users to authenticated;
+grant update (first_name, last_name) on table public.users to authenticated;
 
 grant select on table public.volunteers to authenticated;
 grant insert (
@@ -287,6 +288,29 @@ create trigger guard_registrations_update
   before update on public.registrations
   for each row execute function private.guard_registrations_update();
 
+-- The only way to change a role: admins, for other users in their organization.
+-- Exposed as an API call: supabase.rpc("set_user_role", { target_user_id, new_role }).
+create function public.set_user_role(target_user_id uuid, new_role public.app_role) returns void
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  if not coalesce((select private.is_admin()), false) then
+    raise exception 'Only admins can change roles' using errcode = '42501';
+  end if;
+  if target_user_id = (select auth.uid()) then
+    raise exception 'You cannot change your own role' using errcode = '42501';
+  end if;
+  update public.users set role = new_role
+  where id = target_user_id and organization_id = (select private.current_org_id());
+  if not found then
+    raise exception 'User not found in your organization' using errcode = '42501';
+  end if;
+end;
+$$;
+
+revoke execute on function public.set_user_role(uuid, public.app_role) from public, anon;
+grant execute on function public.set_user_role(uuid, public.app_role) to authenticated;
+
 revoke execute on all functions in schema private from public, anon;
 grant execute on all functions in schema private to authenticated, service_role;
 
@@ -337,8 +361,14 @@ create policy "applications: volunteers apply"
 
 create policy "applications: staff review own org"
   on public.applications for update to authenticated
-  using ((select private.is_staff()) and volunteer_id in (select private.my_org_volunteer_ids()))
-  with check ((select private.is_staff()) and volunteer_id in (select private.my_org_volunteer_ids()));
+  using (
+    (select private.is_staff()) and volunteer_id in (select private.my_org_volunteer_ids())
+    and volunteer_id is distinct from (select private.current_volunteer_id())
+  )
+  with check (
+    (select private.is_staff()) and volunteer_id in (select private.my_org_volunteer_ids())
+    and volunteer_id is distinct from (select private.current_volunteer_id())
+  );
 
 -- Volunteers see published events, plus non-draft events they registered for (their history).
 create policy "events: read published or registered, staff read all"
@@ -392,7 +422,7 @@ create policy "registrations: volunteers cancel or re-register, staff manage"
       volunteer_id = (select private.current_volunteer_id())
       and (
         (status = 'cancelled' and attendance_status is null and private.my_org_event_status(event_id) is distinct from 'completed')
-        or ((select private.is_approved_volunteer()) and private.is_open_event(event_id))
+        or (attendance_status is null and (select private.is_approved_volunteer()) and private.is_open_event(event_id))
       )
     )
     or ((select private.is_staff()) and event_id in (select private.my_org_event_ids()))
