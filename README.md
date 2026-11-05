@@ -148,8 +148,8 @@ npm run db:seed
 
 The seed targets the project in `.env.local` and needs `SUPABASE_SECRET_KEY`.
 It creates 10 rows per table, with 22 users: an admin per organization, two
-managers, and 10 volunteers. All logins share `SEED_USER_PASSWORD`, or a random
-password printed at the end. Re-running replaces only the seed's own rows.
+managers, and 10 volunteers. All logins use `SEED_USER_PASSWORD`. Re-running
+replaces only the seed's own rows.
 Needs Node 22.18 or newer.
 
 ## Installed UI primitives

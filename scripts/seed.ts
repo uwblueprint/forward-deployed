@@ -2,9 +2,9 @@
  * Seeds the Supabase project in .env.local with generated demo data: `npm run db:seed`.
  * Server-only: SUPABASE_SECRET_KEY bypasses RLS, so never import this from app code.
  * Safe to re-run: rows have fixed IDs, so a re-run replaces only the seed's own data.
- * All logins share SEED_USER_PASSWORD, or a random password printed at the end.
+ * All logins use SEED_USER_PASSWORD, so re-runs never change the team's logins.
  */
-import { createHash, randomBytes } from "node:crypto"
+import { createHash } from "node:crypto"
 import { fakerEN_CA as faker } from "@faker-js/faker"
 import { createClient } from "@supabase/supabase-js"
 
@@ -47,8 +47,9 @@ const CUSTOM_FIELDS = [
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL
 const secretKey = process.env.SUPABASE_SECRET_KEY
-if (!url || !secretKey) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY. Copy .env.example to .env.local and fill them in.")
+const password = process.env.SEED_USER_PASSWORD
+if (!url || !secretKey || !password) {
+  console.error("Missing NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY, or SEED_USER_PASSWORD. Copy .env.example to .env.local and fill them in.")
   process.exit(1)
 }
 if (!secretKey.startsWith("sb_secret_")) {
@@ -56,7 +57,6 @@ if (!secretKey.startsWith("sb_secret_")) {
   process.exit(1)
 }
 
-const password = process.env.SEED_USER_PASSWORD || randomBytes(12).toString("base64url")
 const supabase = createClient(url, secretKey, { auth: { persistSession: false, autoRefreshToken: false } })
 faker.seed(20261105)
 
@@ -193,31 +193,30 @@ const registrations = faker.helpers.arrayElements(pairs, REGISTRATION_COUNT).map
 console.log(`Seeding ${new URL(url).host} ...`)
 
 // Deleting the previous run's accounts cascades to their profiles, applications, and registrations.
-for (const user of users) {
-  const { error } = await supabase.auth.admin.deleteUser(user.id)
-  if (error && error.status !== 404) check(error, `deleting seed user ${user.email}`)
+for (const { error } of await Promise.all(users.map((user) => supabase.auth.admin.deleteUser(user.id)))) {
+  if (error && error.status !== 404) check(error, "deleting old seed users")
 }
 
 check((await supabase.from("organizations").upsert(organizations)).error, "upserting organizations")
 
-for (const user of users) {
-  const { error } = await supabase.auth.admin.createUser({
-    id: user.id,
-    email: user.email,
-    password,
-    email_confirm: true,
-    user_metadata: { first_name: user.first_name, last_name: user.last_name },
-  })
-  check(error, `creating auth user ${user.email}`)
-}
+const created = await Promise.all(
+  users.map((user) =>
+    supabase.auth.admin.createUser({
+      id: user.id,
+      email: user.email,
+      password,
+      email_confirm: true,
+      user_metadata: { first_name: user.first_name, last_name: user.last_name },
+    }),
+  ),
+)
+for (const { error } of created) check(error, "creating seed users")
 
 // Role and organization are set here, server-side, never from signup data.
-for (const org of organizations) {
-  for (const role of ["admin", "manager", "volunteer"] as const) {
-    const ids = users.filter((u) => u.organization_id === org.id && u.role === role).map((u) => u.id)
-    if (ids.length) check((await supabase.from("users").update({ role, organization_id: org.id }).in("id", ids)).error, "assigning roles")
-  }
-}
+check(
+  (await supabase.from("users").upsert(users.map(({ id, role, organization_id }) => ({ id, role, organization_id })))).error,
+  "assigning roles",
+)
 
 check((await supabase.from("custom_fields").upsert(customFields)).error, "upserting custom fields")
 check((await supabase.from("events").upsert(events)).error, "upserting events")
@@ -247,4 +246,4 @@ console.table(
   })),
 )
 console.log(`Plus ${ORGANIZATION_COUNT - ACTIVE_ORGANIZATION_COUNT} admin logins for the other organizations.`)
-console.log(process.env.SEED_USER_PASSWORD ? "Password: SEED_USER_PASSWORD from your env file." : `Password for every seed login: ${password}`)
+console.log("Password: SEED_USER_PASSWORD from your env file.")

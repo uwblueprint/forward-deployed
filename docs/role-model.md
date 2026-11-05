@@ -35,11 +35,12 @@ always mirrors the latest application.
 | --- | --- |
 | No profile | Create a profile and apply |
 | `pending` | Edit their profile, browse published events |
-| `approved` | Also register for published events |
+| `approved` | Also register for published events that haven't started |
 | `rejected` | Same as pending, and reapply |
 
-Volunteers can always cancel their own registrations, and still see events they
-registered for after they are cancelled or completed. Drafts are staff-only.
+Volunteers can cancel their own registrations until attendance is recorded or
+the event is completed. They still see events they registered for after those
+are cancelled or completed. Drafts are staff-only.
 
 ## Signup and organizations
 
