@@ -130,12 +130,11 @@ Seed data:
 npm run db:seed
 ```
 
-The seed targets whatever project `.env.local` points at and needs
-`SUPABASE_SECRET_KEY`. It creates 10 organizations, one admin per organization,
-10 volunteers with a mix of statuses, 10 events, and 10 registrations, then
-prints the logins. Every login shares one password: `SEED_USER_PASSWORD` if set,
-otherwise a random one printed at the end. Re-running replaces only the seed's
-own rows. It runs TypeScript directly, so it needs Node 22.18 or newer.
+The seed targets the project in `.env.local` and needs `SUPABASE_SECRET_KEY`.
+It creates 10 rows per table, with 22 users: an admin per organization, two
+managers, and 10 volunteers. All logins share `SEED_USER_PASSWORD`, or a random
+password printed at the end. Re-running replaces only the seed's own rows.
+Needs Node 22.18 or newer.
 
 ## Installed UI primitives
 
