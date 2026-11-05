@@ -152,6 +152,9 @@ managers, and 10 volunteers. All logins use `SEED_USER_PASSWORD`. Re-running
 replaces only the seed's own rows.
 Needs Node 22.18 or newer.
 
+A new project with no seed data has no admins. See "First admin" in
+`docs/role-model.md` for the two commands that create one.
+
 ## Installed UI primitives
 
 `button`, `input`, `label`, `card`, `dialog`, `dropdown-menu`, `select`,
