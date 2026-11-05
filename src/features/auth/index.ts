@@ -4,4 +4,5 @@
  * DO NOT export internal sub-components or route-specific logic.
  */
 
-export {}
+export type { Role, RoleResolver } from "./api";
+export { getUserRole, isProtectedPath, requireRole } from "./api";
