@@ -6,7 +6,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(101);
+select plan(106);
 
 insert into public.organizations (id, name) values
   ('10000000-0000-0000-0000-00000000000a', 'Org A'),
@@ -44,6 +44,7 @@ insert into public.events (id, organization_id, status, title, starts_at, ends_a
   ('40000000-0000-0000-0000-0000000000a2', '10000000-0000-0000-0000-00000000000a', 'draft', 'A draft', now() + interval '2 days', now() + interval '2 days 2 hours'),
   ('40000000-0000-0000-0000-0000000000a3', '10000000-0000-0000-0000-00000000000a', 'completed', 'A completed', now() - interval '7 days', now() - interval '7 days' + interval '2 hours'),
   ('40000000-0000-0000-0000-0000000000a4', '10000000-0000-0000-0000-00000000000a', 'cancelled', 'A cancelled', now() + interval '3 days', now() + interval '3 days 2 hours'),
+  ('40000000-0000-0000-0000-0000000000a5', '10000000-0000-0000-0000-00000000000a', 'published', 'A already started', now() - interval '1 hour', now() + interval '1 hour'),
   ('40000000-0000-0000-0000-0000000000b1', '10000000-0000-0000-0000-00000000000b', 'published', 'B published', now() + interval '1 day', now() + interval '1 day 2 hours');
 
 insert into public.registrations (id, event_id, volunteer_id, attendance_status) values
@@ -97,7 +98,7 @@ select results_eq('select id from public.organizations', $$ values ('10000000-00
 select results_eq('select id from public.users', $$ values ('20000000-0000-0000-0000-0000000000a1'::uuid) $$, 'volunteer sees only their user row');
 select results_eq('select id from public.volunteers', $$ values ('30000000-0000-0000-0000-0000000000a1'::uuid) $$, 'volunteer sees only their profile');
 select results_eq('select id from public.applications', $$ values ('60000000-0000-0000-0000-0000000000a1'::uuid) $$, 'volunteer sees only their applications');
-select set_eq('select id from public.events', $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid), ('40000000-0000-0000-0000-0000000000a3') $$,
+select set_eq('select id from public.events', $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid), ('40000000-0000-0000-0000-0000000000a3'), ('40000000-0000-0000-0000-0000000000a5') $$,
   'volunteer sees published events plus past events they registered for, in their org only');
 select results_eq('select id from public.registrations', $$ values ('50000000-0000-0000-0000-0000000000a3'::uuid) $$, 'volunteer sees only their registrations');
 select results_eq('select id from public.custom_fields', $$ values ('70000000-0000-0000-0000-0000000000a1'::uuid) $$, 'volunteer sees only their org''s custom fields');
@@ -118,6 +119,8 @@ select lives_ok($$ insert into public.registrations (event_id, volunteer_id) val
 select throws_ok($$ insert into public.registrations (event_id, volunteer_id) values ('40000000-0000-0000-0000-0000000000a2', '30000000-0000-0000-0000-0000000000a1') $$, '42501', null, 'volunteer cannot register for a draft');
 select throws_ok($$ insert into public.registrations (event_id, volunteer_id) values ('40000000-0000-0000-0000-0000000000b1', '30000000-0000-0000-0000-0000000000a1') $$, '42501', null, 'volunteer cannot register for an org B event');
 select throws_ok($$ insert into public.registrations (event_id, volunteer_id) values ('40000000-0000-0000-0000-0000000000a1', '30000000-0000-0000-0000-0000000000a3') $$, '42501', null, 'volunteer cannot register someone else');
+select throws_ok($$ insert into public.registrations (event_id, volunteer_id) values ('40000000-0000-0000-0000-0000000000a5', '30000000-0000-0000-0000-0000000000a1') $$, '42501', null, 'volunteer cannot register for an event that already started');
+select throws_ok($$ update public.registrations set status = 'cancelled' where id = '50000000-0000-0000-0000-0000000000a3' $$, '42501', null, 'volunteer cannot cancel once attendance is recorded');
 select throws_ok($$ update public.registrations set attendance_status = 'attended' where event_id = '40000000-0000-0000-0000-0000000000a1' $$, '42501', 'Volunteers can only change the status of their registration', 'volunteer cannot record their own attendance');
 select results_eq($$ update public.registrations set status = 'cancelled' where event_id = '40000000-0000-0000-0000-0000000000a1' returning status::text $$, $$ values ('cancelled') $$, 'volunteer can cancel their registration');
 select is_empty('delete from public.registrations returning id', 'volunteer cannot delete registrations');
@@ -130,7 +133,7 @@ reset role;
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a2", "role": "authenticated"}';
-select results_eq('select id from public.events', $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid) $$, 'pending volunteer can browse published events');
+select set_eq('select id from public.events', $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid), ('40000000-0000-0000-0000-0000000000a5') $$, 'pending volunteer can browse published events');
 select throws_ok($$ insert into public.registrations (event_id, volunteer_id) values ('40000000-0000-0000-0000-0000000000a1', '30000000-0000-0000-0000-0000000000a2') $$, '42501', null, 'pending volunteer cannot register');
 select throws_ok($$ insert into public.applications (volunteer_id) values ('30000000-0000-0000-0000-0000000000a2') $$, '23505', null, 'volunteer cannot have two open applications');
 
@@ -171,7 +174,7 @@ select set_eq('select id from public.users', $$ values ('20000000-0000-0000-0000
 select set_eq('select user_id from public.volunteers', $$ values ('20000000-0000-0000-0000-0000000000a1'::uuid), ('20000000-0000-0000-0000-0000000000a2'),
   ('20000000-0000-0000-0000-0000000000a3'), ('20000000-0000-0000-0000-0000000000a4') $$, 'admin sees every org A volunteer and none in org B');
 select set_eq('select id from public.events', $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid), ('40000000-0000-0000-0000-0000000000a2'),
-  ('40000000-0000-0000-0000-0000000000a3'), ('40000000-0000-0000-0000-0000000000a4') $$, 'admin sees every org A event and none in org B');
+  ('40000000-0000-0000-0000-0000000000a3'), ('40000000-0000-0000-0000-0000000000a4'), ('40000000-0000-0000-0000-0000000000a5') $$, 'admin sees every org A event and none in org B');
 select set_eq('select event_id from public.registrations', $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid), ('40000000-0000-0000-0000-0000000000a3') $$, 'admin sees org A registrations only');
 select is_empty($$ select id from public.applications where volunteer_id = '30000000-0000-0000-0000-0000000000b1' $$, 'admin cannot see org B applications');
 
@@ -182,6 +185,8 @@ select lives_ok($$ update public.applications set status = 'approved', rejection
 select is((select rejection_reason from public.applications where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4')), null, 'approving clears any rejection reason');
 select lives_ok($$ update public.volunteers set phone = '519-555-0199', skills = '{Driving}' where id = '30000000-0000-0000-0000-0000000000a2' $$, 'admin can edit a volunteer profile');
 select throws_ok($$ update public.volunteers set consent_accepted_at = now() where id = '30000000-0000-0000-0000-0000000000a2' $$, '42501', 'Only the volunteer can record their own consent', 'admin cannot record consent for a volunteer');
+select lives_ok($$ update public.volunteers set consent_accepted_at = '2001-01-01', phone = '519-555-0123' where id = '30000000-0000-0000-0000-0000000000a1' $$, 'admin can save a whole profile back');
+select is((select consent_accepted_at from public.volunteers where id = '30000000-0000-0000-0000-0000000000a1'), now(), 'saving a profile back keeps the original consent time');
 select throws_ok($$ update public.users set role = 'volunteer' where id = '20000000-0000-0000-0000-0000000000a0' $$, '42501', 'You cannot change your own role', 'admin cannot change their own role');
 select results_eq($$ update public.users set role = 'manager' where id = '20000000-0000-0000-0000-0000000000a4' returning role::text $$, $$ values ('manager') $$, 'admin can change another user''s role');
 select lives_ok($$ update public.users set last_name = 'Edited' where id = '20000000-0000-0000-0000-0000000000a1' $$, 'admin can edit a user''s name');
@@ -251,6 +256,9 @@ select throws_ok($$ update public.registrations set status = 'registered' where 
 set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a3", "role": "authenticated"}';
 select is_empty($$ select id from public.events where status <> 'published' $$, 'volunteers see no drafts or past events they did not register for');
 reset role;
+
+delete from public.applications where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4');
+select is((select status::text from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4'), 'pending', 'deleting the latest application resyncs the volunteer status');
 
 select * from finish();
 rollback;

@@ -54,7 +54,7 @@ create table public.applications (
   status public.volunteer_status not null default 'pending',
   responses jsonb not null default '{}', -- keyed by custom_fields.id
   rejection_reason text,
-  submitted_at timestamptz not null default now(),
+  submitted_at timestamptz not null default clock_timestamp(), -- distinct even within one transaction
   reviewed_by uuid references public.users (id) on delete set null,
   reviewed_at timestamptz,
   created_at timestamptz not null default now(),
