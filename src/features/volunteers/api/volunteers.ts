@@ -21,6 +21,12 @@ function backendError(message: string): VolunteerOnboardingError {
   return { type: "backend", message }
 }
 
+// The guard_volunteer_consent trigger stamps the authoritative time itself
+// on insert/update; this constant only needs to be non-null to signal
+// "consent given now" and is never read back as the real timestamp, so it
+// isn't derived from the client's clock.
+const CONSENT_GIVEN_SIGNAL = new Date(0).toISOString()
+
 /**
  * Plain server-side function — not a Server Action. Call it from inside a
  * Server Action or Route Handler; do not add "use server" to this file.
@@ -71,7 +77,7 @@ export async function submitVolunteerOnboarding(
     emergency_contact_name: payload.emergencyContactName,
     emergency_contact_phone: payload.emergencyContactPhone,
     emergency_contact_relationship: payload.emergencyContactRelationship,
-    consent_accepted_at: new Date().toISOString(),
+    consent_accepted_at: CONSENT_GIVEN_SIGNAL,
   })
 
   if (volunteersError) {
