@@ -41,6 +41,16 @@ different one, e.g. `npm run dev -- -p 43127`.
 | `npm test` | Run the Vitest suite once |
 | `npm run test:watch` | Run Vitest in watch mode |
 
+## Contributing
+
+| Rule | Detail |
+| --- | --- |
+| Branch protection | `main` is protected. No direct pushes; all changes go through a pull request. |
+| CI | Checks must pass before a PR can merge. |
+| Approvals | Not required. Once checks are green, authors can merge their own PR. |
+| Code owners | `.github/CODEOWNERS` auto-requests reviewers for visibility only. Approval is not required. |
+| Branch naming | Generally `<type>/<short-description>`, e.g. `feature/add-search-bar`. Treat this as a guideline, not a strict rule. |
+
 ## Project layout
 
 The codebase is organized by feature, not by technical layer. Each domain owns
@@ -85,6 +95,65 @@ import { VolunteerTable } from "@/features/volunteers/components/volunteer-table
 Anything not exported from a feature's `index.ts` is private to that feature.
 Code shared across two or more features belongs in `src/components/common` or
 `src/lib` instead.
+
+## Environment variables
+
+Copy `.env.example` to `.env.local` and fill in the values. `.env.local` is
+gitignored; never commit real keys. Ask the Supabase owner for the values
+through the team's secure channel, not Slack plaintext.
+
+| Variable | Where it runs | Notes |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Browser and server | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser and server | Holds the publishable key (`sb_publishable_...`) |
+| `SUPABASE_SECRET_KEY` | Server-only scripts | Secret key (`sb_secret_...`); bypasses RLS |
+
+## Accounts & ownership
+
+| Service | Owners | Other members |
+| --- | --- | --- |
+| Supabase (org "UW Blueprint", Blueprint-controlled account) | Allan Yang, Rishab (TL) | Samay, Ethan, Angus (Developer) |
+| GitHub (`uwblueprint/forward-deployed`) | TBD | TBD |
+| Vercel | TBD | TBD |
+
+Secrets (Supabase keys, database password) live in: TBD.
+
+To transfer ownership of an account:
+
+1. An existing owner invites the new owner with the Owner role.
+2. The new owner accepts the invite and confirms they can open the project settings.
+3. Only then may the old owner leave or be downgraded. Every account must keep at least two owners.
+4. Update the table above in the same pull request.
+
+## Database
+
+All schema changes go in migration files under `supabase/migrations/`. Never
+change tables from the Supabase dashboard. Who can read or change what is
+described in `docs/role-model.md`.
+
+Local database (needs Docker):
+
+```bash
+npx supabase start      # start the local stack
+npx supabase db reset   # rebuild the local database from the migrations
+npx supabase test db    # run the access-control tests in supabase/tests/
+npx supabase stop       # stop the local stack
+```
+
+Seed data:
+
+```bash
+npm run db:seed
+```
+
+The seed targets the project in `.env.local` and needs `SUPABASE_SECRET_KEY`.
+It creates 10 rows per table, with 22 users: an admin per organization, two
+managers, and 10 volunteers. All logins use `SEED_USER_PASSWORD`. Re-running
+replaces only the seed's own rows.
+Needs Node 22.18 or newer.
+
+A new project with no seed data has no admins. See "First admin" in
+`docs/role-model.md` for the two commands that create one.
 
 ## Installed UI primitives
 
