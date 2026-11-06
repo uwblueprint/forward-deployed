@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
@@ -79,6 +79,27 @@ describe("AdminShell", () => {
 
     await user.click(screen.getByRole("button", { name: "Close navigation" }))
     expect(open).toHaveAttribute("aria-expanded", "false")
+  })
+
+  it("keeps the closed mobile drawer out of the DOM (nothing to tab into)", () => {
+    render(<AdminShell>x</AdminShell>)
+    expect(screen.queryByRole("button", { name: "Close navigation" })).toBeNull()
+    expect(screen.queryByRole("dialog")).toBeNull()
+  })
+
+  it("moves focus into the drawer, closes on Escape, and returns focus", async () => {
+    const user = userEvent.setup()
+    render(<AdminShell>x</AdminShell>)
+
+    const open = screen.getByRole("button", { name: "Open navigation" })
+    await user.click(open)
+    const drawer = await screen.findByRole("dialog")
+    await waitFor(() => expect(drawer).toContainElement(document.activeElement as HTMLElement))
+
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(open).toHaveAttribute("aria-expanded", "false")
+    expect(open).toHaveFocus()
   })
 
   it("keeps children mounted across toggles (no remount / layout reset)", async () => {
