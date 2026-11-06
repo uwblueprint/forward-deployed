@@ -1,8 +1,8 @@
 name: CI
 
+# Every PR, whatever its target branch (stacked PRs and integration branches included).
 on:
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
