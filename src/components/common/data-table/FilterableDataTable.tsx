@@ -56,6 +56,8 @@ export function FilterableDataTable<TData extends RowData>({
     enableSortingRemoval: false,
   })
 
+  const rows = table.getRowModel().rows
+
   return (
     <Table>
       <TableHeader>
@@ -99,15 +101,29 @@ export function FilterableDataTable<TData extends RowData>({
         ))}
       </TableHeader>
       <TableBody>
-        {table.getRowModel().rows.map((row) => (
-          <TableRow key={row.id}>
-            {row.getAllCells().map((cell) => (
-              <TableCell key={cell.id}>
-                <table.FlexRender cell={cell} />
-              </TableCell>
-            ))}
+        {rows.length === 0 ? (
+          <TableRow>
+            {/* Leaf columns, not `columns.length`, so grouped headers still span the full width.
+                Fixed text for now; an `emptyMessage` prop could let each page say e.g.
+                "No volunteers yet." once a page needs it. */}
+            <TableCell
+              colSpan={table.getAllLeafColumns().length}
+              className="h-24 text-center text-muted-foreground"
+            >
+              No results.
+            </TableCell>
           </TableRow>
-        ))}
+        ) : (
+          rows.map((row) => (
+            <TableRow key={row.id}>
+              {row.getAllCells().map((cell) => (
+                <TableCell key={cell.id}>
+                  <table.FlexRender cell={cell} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))
+        )}
       </TableBody>
     </Table>
   )

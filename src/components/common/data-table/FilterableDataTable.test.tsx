@@ -72,6 +72,13 @@ describe("FilterableDataTable", () => {
     expect(screen.queryByRole("button", { name: "ID" })).toBeNull()
   })
 
+  it("shows an empty-state row spanning every column when there is no data", () => {
+    render(<FilterableDataTable data={[]} columns={columns} />)
+    const cell = screen.getByRole("cell", { name: "No results." })
+    expect(cell).toHaveAttribute("colspan", String(columns.length))
+    expect(screen.getAllByRole("row")).toHaveLength(2) // header + empty-state row
+  })
+
   it("works with an unrelated row type without changes", async () => {
     type Event = { title: string; date: string }
     const events: Event[] = [
