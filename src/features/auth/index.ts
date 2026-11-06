@@ -5,4 +5,9 @@
  */
 
 export type { Role, RoleResolver } from "./api";
-export { getUserRole, isProtectedPath, requireRole } from "./api";
+export {
+  getUserRole,
+  isProtectedPath,
+  requireRole,
+  requireRoleForRoute,
+} from "./api";

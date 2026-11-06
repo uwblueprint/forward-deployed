@@ -1,2 +1,3 @@
-export type { Role, RoleResolver } from "./session";
-export { getUserRole, isProtectedPath, requireRole } from "./session";
+export type { Role, RoleResolver } from "./requireRole";
+export { getUserRole, requireRole, requireRoleForRoute } from "./requireRole";
+export { isProtectedPath } from "./session";

@@ -1,24 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockGetUser, RedirectError, NotFoundError } = vi.hoisted(() => {
-  class RedirectError extends Error {
-    constructor(public readonly url: string) {
-      super(`redirect:${url}`);
-    }
-  }
-
-  class NotFoundError extends Error {
-    constructor() {
-      super("not-found");
-    }
-  }
-
-  return {
-    mockGetUser: vi.fn(),
-    RedirectError,
-    NotFoundError,
-  };
-});
+const { mockGetUser } = vi.hoisted(() => ({
+  mockGetUser: vi.fn(),
+}));
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(async () => ({
@@ -26,18 +10,8 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
-vi.mock("next/navigation", () => ({
-  redirect: vi.fn((url: string) => {
-    throw new RedirectError(url);
-  }),
-  notFound: vi.fn(() => {
-    throw new NotFoundError();
-  }),
-}));
-
 import { GET } from "@/app/api/auth/me/route";
-import { redirect, notFound } from "next/navigation";
-import { isProtectedPath, requireRole, type RoleResolver } from "./session";
+import { isProtectedPath } from "./session";
 
 const user = { id: "user-1", email: "person@example.com" };
 
@@ -62,42 +36,6 @@ describe("isProtectedPath", () => {
     ["/administrator", false],
   ])("does not treat %s as protected", (path, expected) => {
     expect(isProtectedPath(path)).toBe(expected);
-  });
-});
-
-describe("requireRole", () => {
-  it("redirects to /login when there is no session", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null } });
-
-    await expect(requireRole("admin")).rejects.toThrow(RedirectError);
-    expect(redirect).toHaveBeenCalledWith("/login");
-    expect(notFound).not.toHaveBeenCalled();
-  });
-
-  it("hits notFound for a signed-in user using the default getUserRole stub", async () => {
-    mockGetUser.mockResolvedValue({ data: { user } });
-
-    await expect(requireRole("admin")).rejects.toThrow(NotFoundError);
-    expect(notFound).toHaveBeenCalled();
-  });
-
-  it("passes and returns the user when an injected resolver returns the matching role", async () => {
-    mockGetUser.mockResolvedValue({ data: { user } });
-    const resolveRole: RoleResolver = async () => "admin";
-
-    const result = await requireRole("admin", resolveRole);
-
-    expect(result).toBe(user);
-    expect(notFound).not.toHaveBeenCalled();
-  });
-
-  it("hits notFound when an injected resolver returns a non-matching role", async () => {
-    mockGetUser.mockResolvedValue({ data: { user } });
-    const resolveRole: RoleResolver = async () => "volunteer";
-
-    await expect(requireRole("admin", resolveRole)).rejects.toThrow(
-      NotFoundError,
-    );
   });
 });
 

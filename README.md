@@ -155,6 +155,27 @@ Needs Node 22.18 or newer.
 A new project with no seed data has no admins. See "First admin" in
 `docs/role-model.md` for the two commands that create one.
 
+## Authorization
+
+Pages and layouts call `requireRole` from `@/features/auth`; route handlers
+call `requireRoleForRoute` instead, since `redirect`/`notFound` don't fit an
+API response — it returns a typed `{ ok: true, user }` /
+`{ ok: false, response }` result instead of throwing.
+
+Every server component that reads protected data must call `requireRole`
+itself before reading that data, even inside a protected layout — layouts
+render in parallel with their pages, so a layout-level check can't gate what
+a page returns.
+
+`src/proxy.ts` is a convenience redirect for signed-out visitors, not the
+security gate, and is not a substitute for `requireRole`/`requireRoleForRoute`
+at each server boundary.
+
+Roles currently come from a fail-closed placeholder (`getUserRole` always
+returns `null`), so every role check is denied until the role-storage model
+lands in a separate PR. Never read roles from `app_metadata` or
+`user_metadata`.
+
 ## Installed UI primitives
 
 `button`, `input`, `label`, `card`, `dialog`, `dropdown-menu`, `select`,
