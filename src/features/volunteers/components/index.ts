@@ -1,1 +1,1 @@
-export {}
+export { VolunteerOnboardingWizard } from "./VolunteerOnboardingWizard"
