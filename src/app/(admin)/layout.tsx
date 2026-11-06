@@ -1,12 +1,10 @@
+import { AdminShell } from "@/components/common/navigation"
+
+// Server component: route-level auth checks belong here, not inside AdminShell.
 export default function AdminLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
-  return (
-    <div>
-      <p>Admin area</p>
-      {children}
-    </div>
-  );
+  return <AdminShell>{children}</AdminShell>
 }
