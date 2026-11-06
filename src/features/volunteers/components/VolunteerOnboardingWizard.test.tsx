@@ -165,6 +165,29 @@ describe("VolunteerOnboardingWizard", () => {
     expect(loadDraft(FORM_ID)).not.toBeUndefined()
   })
 
+  it("shows a generic error when the server action rejects outright instead of returning ok:false", async () => {
+    // e.g. an infra error thrown before the action could return a
+    // structured result - distinct from the mockResolvedValue({ok:false})
+    // case above, and previously fell through as a silent unhandled
+    // rejection with no visible feedback at all.
+    mockSubmitAction.mockRejectedValue(new Error("boom"))
+    const user = userEvent.setup()
+    render(<VolunteerOnboardingWizard />)
+
+    await fillStepOne(user)
+    await user.click(screen.getByRole("button", { name: "Next" }))
+    await fillStepTwo(user)
+    await user.click(screen.getByRole("button", { name: "Next" }))
+    await fillStepThree(user)
+    await user.click(screen.getByRole("button", { name: "Submit" }))
+
+    expect(
+      await screen.findByText("Something went wrong submitting your onboarding form. Please try again.")
+    ).toBeInTheDocument()
+    expect(screen.queryByText("You're all set!")).not.toBeInTheDocument()
+    expect(loadDraft(FORM_ID)).not.toBeUndefined()
+  })
+
   it("shows a session-expired message when the server action reports unauthenticated", async () => {
     mockSubmitAction.mockResolvedValue({ ok: false, error: { type: "unauthenticated" } })
     const user = userEvent.setup()

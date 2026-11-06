@@ -160,6 +160,8 @@ export function VolunteerOnboardingWizard() {
       ...(result.data as VolunteerOnboardingStepThree),
     }
 
+    const genericError = "Something went wrong submitting your onboarding form. Please try again."
+
     setSubmitError(null)
     setIsSubmitting(true)
     try {
@@ -168,13 +170,20 @@ export function VolunteerOnboardingWizard() {
         setSubmitError(
           submission.error.type === "unauthenticated"
             ? "Your session has expired. Please sign in again to finish onboarding."
-            : "Something went wrong submitting your onboarding form. Please try again."
+            : genericError
         )
         return
       }
 
       clearDraft(FORM_ID)
       setSubmittedPayload(payload)
+    } catch {
+      // The Server Action rejected outright (network failure, an infra error
+      // thrown before it could even return {ok: false}, etc.) rather than
+      // resolving with a structured error - without this, that case fell
+      // through as a silent unhandled rejection: the button reset but
+      // nothing told the user their submission didn't go through.
+      setSubmitError(genericError)
     } finally {
       setIsSubmitting(false)
     }
