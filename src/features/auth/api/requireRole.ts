@@ -1,18 +1,48 @@
+import { cache } from "react";
 import type { User } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { requireUser } from "@/lib/supabase/require-user";
+import { getCurrentUser, requireUser } from "@/lib/supabase/require-user";
 
-export type Role = "admin" | "volunteer";
+export type Role = "admin" | "manager" | "volunteer";
 
 export type RoleResolver = (user: User) => Promise<Role | null>;
 
+const KNOWN_ROLES: readonly Role[] = ["admin", "manager", "volunteer"];
+
+function isRole(value: unknown): value is Role {
+  return (
+    typeof value === "string" &&
+    (KNOWN_ROLES as readonly string[]).includes(value)
+  );
+}
+
 /**
- * Fail-closed placeholder until FOR-21's role reader replaces it. Until
- * then it must never grant a role, so every caller is denied.
+ * Reads `public.users.role` for one user id (see docs/role-model.md),
+ * deduplicated per request via React's `cache()` so multiple role checks
+ * in the same request issue only one query. Fail-closed: a query error, a
+ * missing row, or an unrecognized role value all resolve to null. Never
+ * reads role from `app_metadata`, `user_metadata`, or JWT claims.
  */
-export const getUserRole: RoleResolver = async () => null;
+const resolveRoleById = cache(
+  async (userId: string): Promise<Role | null> => {
+    const supabase = await createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", userId)
+      .single();
+
+    if (error || !data || !isRole(data.role)) {
+      return null;
+    }
+
+    return data.role;
+  },
+);
+
+export const getUserRole: RoleResolver = (user) => resolveRoleById(user.id);
 
 function isAllowed(role: Role | null, allowed: Role | Role[]): boolean {
   if (role === null) {
@@ -55,11 +85,11 @@ export async function requireRole(
 /**
  * Call inside a route handler serving protected data. `redirect`/`notFound`
  * throw navigation errors meant for page rendering, which don't fit an API
- * response, so this checks the session directly with
- * `createServerSupabaseClient().auth.getUser()` and never redirects.
- * Returns `{ ok: true, user }` on success, or `{ ok: false, response }`
- * with a 401 (no session) or 403 (missing/insufficient role) JSON response
- * to return as-is from the handler.
+ * response, so this checks the session directly via `getCurrentUser()` and
+ * never redirects. Returns `{ ok: true, user }` on success, or
+ * `{ ok: false, response }` with a 401 (no session) or 403
+ * (missing/insufficient role) JSON response to return as-is from the
+ * handler.
  *
  * ```ts
  * export async function GET() {
@@ -74,10 +104,7 @@ export async function requireRoleForRoute(
   allowed: Role | Role[],
   resolveRole: RoleResolver = getUserRole,
 ): Promise<{ ok: true; user: User } | { ok: false; response: NextResponse }> {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     return {

@@ -1,28 +1,38 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockGetUser, RedirectError, NotFoundError } = vi.hoisted(() => {
-  class RedirectError extends Error {
-    constructor(public readonly url: string) {
-      super(`redirect:${url}`);
+const { mockGetUser, mockSingle, RedirectError, NotFoundError } = vi.hoisted(
+  () => {
+    class RedirectError extends Error {
+      constructor(public readonly url: string) {
+        super(`redirect:${url}`);
+      }
     }
-  }
 
-  class NotFoundError extends Error {
-    constructor() {
-      super("not-found");
+    class NotFoundError extends Error {
+      constructor() {
+        super("not-found");
+      }
     }
-  }
 
-  return {
-    mockGetUser: vi.fn(),
-    RedirectError,
-    NotFoundError,
-  };
-});
+    return {
+      mockGetUser: vi.fn(),
+      mockSingle: vi.fn(),
+      RedirectError,
+      NotFoundError,
+    };
+  },
+);
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(async () => ({
     auth: { getUser: mockGetUser },
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          single: mockSingle,
+        })),
+      })),
+    })),
   })),
 }));
 
@@ -35,17 +45,51 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+import type { User } from "@supabase/supabase-js";
 import { redirect, notFound } from "next/navigation";
 import {
+  getUserRole,
   requireRole,
   requireRoleForRoute,
   type RoleResolver,
 } from "./requireRole";
 
-const user = { id: "user-1", email: "person@example.com" };
+const user = { id: "user-1", email: "person@example.com" } as User;
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("getUserRole", () => {
+  it("returns the role for a valid row", async () => {
+    mockSingle.mockResolvedValue({ data: { role: "manager" }, error: null });
+
+    await expect(getUserRole(user)).resolves.toBe("manager");
+  });
+
+  it("returns null on a query error", async () => {
+    mockSingle.mockResolvedValue({
+      data: null,
+      error: { message: "boom" },
+    });
+
+    await expect(getUserRole(user)).resolves.toBeNull();
+  });
+
+  it("returns null when there is no row", async () => {
+    mockSingle.mockResolvedValue({ data: null, error: null });
+
+    await expect(getUserRole(user)).resolves.toBeNull();
+  });
+
+  it("returns null for an unknown role value", async () => {
+    mockSingle.mockResolvedValue({
+      data: { role: "superadmin" },
+      error: null,
+    });
+
+    await expect(getUserRole(user)).resolves.toBeNull();
+  });
 });
 
 describe("requireRole", () => {
@@ -57,8 +101,9 @@ describe("requireRole", () => {
     expect(notFound).not.toHaveBeenCalled();
   });
 
-  it("hits notFound for a signed-in user using the default placeholder stub", async () => {
+  it("hits notFound for a signed-in user when the default resolver finds no role row", async () => {
     mockGetUser.mockResolvedValue({ data: { user } });
+    mockSingle.mockResolvedValue({ data: null, error: null });
 
     await expect(requireRole("admin")).rejects.toThrow(NotFoundError);
     expect(notFound).toHaveBeenCalled();
@@ -85,15 +130,24 @@ describe("requireRole", () => {
 
   it("passes for either role when allowed is a list", async () => {
     mockGetUser.mockResolvedValue({ data: { user } });
-    const volunteerResolver: RoleResolver = async () => "volunteer";
+    const managerResolver: RoleResolver = async () => "manager";
     const adminResolver: RoleResolver = async () => "admin";
 
     await expect(
-      requireRole(["volunteer", "admin"], volunteerResolver),
+      requireRole(["admin", "manager"], managerResolver),
     ).resolves.toBe(user);
     await expect(
-      requireRole(["volunteer", "admin"], adminResolver),
+      requireRole(["admin", "manager"], adminResolver),
     ).resolves.toBe(user);
+  });
+
+  it("hits notFound when a volunteer requests an admin/manager area", async () => {
+    mockGetUser.mockResolvedValue({ data: { user } });
+    const resolveRole: RoleResolver = async () => "volunteer";
+
+    await expect(
+      requireRole(["admin", "manager"], resolveRole),
+    ).rejects.toThrow(NotFoundError);
   });
 
   it("hits notFound when the resolver returns null", async () => {
@@ -139,10 +193,38 @@ describe("requireRoleForRoute", () => {
     expect(result).toEqual({ ok: true, user });
   });
 
-  it("returns 403 for the default placeholder", async () => {
+  it("returns 403 for the default resolver when the role query returns no row", async () => {
     mockGetUser.mockResolvedValue({ data: { user } });
+    mockSingle.mockResolvedValue({ data: null, error: null });
 
     const result = await requireRoleForRoute("admin");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.response.status).toBe(403);
+    }
+  });
+
+  it("returns ok when a manager requests an admin/manager route", async () => {
+    mockGetUser.mockResolvedValue({ data: { user } });
+    const resolveRole: RoleResolver = async () => "manager";
+
+    const result = await requireRoleForRoute(
+      ["admin", "manager"],
+      resolveRole,
+    );
+
+    expect(result).toEqual({ ok: true, user });
+  });
+
+  it("returns 403 when a volunteer requests an admin/manager route", async () => {
+    mockGetUser.mockResolvedValue({ data: { user } });
+    const resolveRole: RoleResolver = async () => "volunteer";
+
+    const result = await requireRoleForRoute(
+      ["admin", "manager"],
+      resolveRole,
+    );
 
     expect(result.ok).toBe(false);
     if (!result.ok) {

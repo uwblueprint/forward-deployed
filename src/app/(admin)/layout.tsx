@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { requireRole } from "@/features/auth";
 
 async function RequireRole({ children }: { children: React.ReactNode }) {
-  await requireRole("admin");
+  // Admin area policy (admin + manager) is pending team confirmation.
+  await requireRole(["admin", "manager"]);
 
   return (
     <>
