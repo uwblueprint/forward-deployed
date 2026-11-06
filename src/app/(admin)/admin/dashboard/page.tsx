@@ -1,8 +1,8 @@
 import { Suspense } from "react";
-import { requireUser } from "@/lib/supabase/require-user";
+import { requireRole } from "@/features/auth";
 
 async function AdminDashboard() {
-  await requireUser();
+  await requireRole("admin");
 
   return <h1>Admin dashboard</h1>;
 }
