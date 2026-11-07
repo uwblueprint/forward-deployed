@@ -64,7 +64,7 @@ type StepThreeDraft = Omit<Partial<VolunteerOnboardingStepThree>, "agreedToTerms
  * sees is the friendly one defined in volunteerSchema.ts.
  */
 const INITIAL_STEP_VALUES: unknown[] = [
-  { firstName: "", lastName: "", phone: "", location: "" },
+  { phone: "", location: "" },
   { weekdays: [], shiftPreference: "" },
   {
     skills: [],
@@ -96,8 +96,21 @@ function errorId(name: string): string {
  * shapes come from the volunteer schemas. Submission writes to Supabase via
  * a Server Action for the current authenticated user (see
  * src/features/volunteers/api/volunteers.ts).
+ *
+ * `displayFirstName`/`displayLastName` are already-saved values from
+ * registration (#19), passed down by the server component so this form can
+ * show them as a prefilled, read-only display rather than asking the
+ * volunteer to type their name again.
  */
-export function VolunteerOnboardingWizard() {
+export interface VolunteerOnboardingWizardProps {
+  displayFirstName?: string
+  displayLastName?: string
+}
+
+export function VolunteerOnboardingWizard({
+  displayFirstName = "",
+  displayLastName = "",
+}: VolunteerOnboardingWizardProps = {}) {
   const wizard = useMultiStepWizard({
     totalSteps: 3,
     formId: FORM_ID,
@@ -219,26 +232,12 @@ export function VolunteerOnboardingWizard() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="firstName">First name</Label>
-            <Input
-              id="firstName"
-              value={personalDetails.firstName ?? ""}
-              onChange={(event) => updatePersonalDetails({ firstName: event.target.value })}
-              aria-invalid={Boolean(fieldError("firstName"))}
-              aria-describedby={describedBy("firstName")}
-            />
-            <FieldError id={errorId("firstName")} message={fieldError("firstName")} />
+            <Input id="firstName" value={displayFirstName} readOnly aria-readonly="true" />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="lastName">Last name</Label>
-            <Input
-              id="lastName"
-              value={personalDetails.lastName ?? ""}
-              onChange={(event) => updatePersonalDetails({ lastName: event.target.value })}
-              aria-invalid={Boolean(fieldError("lastName"))}
-              aria-describedby={describedBy("lastName")}
-            />
-            <FieldError id={errorId("lastName")} message={fieldError("lastName")} />
+            <Input id="lastName" value={displayLastName} readOnly aria-readonly="true" />
           </div>
 
           <div className="flex flex-col gap-1.5">

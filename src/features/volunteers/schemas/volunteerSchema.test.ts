@@ -19,8 +19,6 @@ import {
 } from "./volunteerSchema"
 
 const validPersonalDetails: PersonalDetails = {
-  firstName: "Ada",
-  lastName: "Lovelace",
   phone: "555-123-4567",
   location: "London, UK",
 }
@@ -47,18 +45,6 @@ const validConsent: Consent = {
 describe("personalDetailsSchema", () => {
   it("accepts valid personal details", () => {
     expect(personalDetailsSchema.safeParse(validPersonalDetails).success).toBe(true)
-  })
-
-  it("rejects an empty first name with a descriptive message", () => {
-    const result = personalDetailsSchema.safeParse({ ...validPersonalDetails, firstName: "" })
-    expect(result.success).toBe(false)
-    expect(result.error?.issues[0].message).toBe("First name is required")
-  })
-
-  it("rejects an empty last name with a descriptive message", () => {
-    const result = personalDetailsSchema.safeParse({ ...validPersonalDetails, lastName: "" })
-    expect(result.success).toBe(false)
-    expect(result.error?.issues[0].message).toBe("Last name is required")
   })
 
   it("rejects a malformed phone number with a descriptive message", () => {
@@ -162,7 +148,7 @@ describe("consentSchema", () => {
 describe("composed step schemas", () => {
   it("stepOneSchema accepts valid personal details and rejects invalid ones", () => {
     expect(stepOneSchema.safeParse(validPersonalDetails).success).toBe(true)
-    expect(stepOneSchema.safeParse({ ...validPersonalDetails, firstName: "" }).success).toBe(false)
+    expect(stepOneSchema.safeParse({ ...validPersonalDetails, location: "" }).success).toBe(false)
   })
 
   it("stepTwoSchema accepts valid availability and rejects invalid ones", () => {
@@ -206,7 +192,7 @@ describe("volunteerOnboardingSchema (full combined payload)", () => {
 
   it("rejects when any field from any step is invalid", () => {
     expect(
-      volunteerOnboardingSchema.safeParse({ ...validPayload, firstName: "" }).success
+      volunteerOnboardingSchema.safeParse({ ...validPayload, location: "" }).success
     ).toBe(false)
     expect(
       volunteerOnboardingSchema.safeParse({ ...validPayload, weekdays: [] }).success

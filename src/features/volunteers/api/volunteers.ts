@@ -32,10 +32,10 @@ const CONSENT_GIVEN_SIGNAL = new Date(0).toISOString()
  * Server Action or Route Handler; do not add "use server" to this file.
  *
  * Writes the completed onboarding form to `public.volunteers` (phone,
- * location, availability, skills, emergency contact, consent) and
- * `public.users` (first_name, last_name) for the current authenticated
- * user. Re-validates server-side via the same schema the wizard already
- * validated client-side against - never trust client validation alone.
+ * location, availability, skills, emergency contact, consent) for the
+ * current authenticated user. Re-validates server-side via the same schema
+ * the wizard already validated client-side against - never trust client
+ * validation alone.
  *
  * Field mapping notes (see supabase/migrations/20261027220355_create_tables.sql
  * and .../20261104002935_access_control.sql):
@@ -43,10 +43,11 @@ const CONSENT_GIVEN_SIGNAL = new Date(0).toISOString()
  * - `agreedToTerms` (boolean) -> `consent_accepted_at` (timestamptz): the
  *   guard_volunteer_consent trigger stamps the authoritative time itself on
  *   insert/update, so any non-null timestamp here just signals "yes, now."
- * - `firstName`/`lastName` go to `users`, not `volunteers` - there's no name
- *   column on `volunteers`. `email` isn't submitted at all: it's mirrored
- *   onto `users.email` from `auth.users` by a DB trigger and isn't grantable
- *   to update through this form.
+ * - `first_name`/`last_name` aren't written here at all: they're collected at
+ *   registration (#19) and this form only displays them read-only. `email`
+ *   isn't submitted either - it's mirrored onto `users.email` from
+ *   `auth.users` by a DB trigger and isn't grantable to update through this
+ *   form.
  */
 export async function submitVolunteerOnboarding(
   input: unknown
@@ -82,15 +83,6 @@ export async function submitVolunteerOnboarding(
 
   if (volunteersError) {
     return { ok: false, error: backendError(volunteersError.message) }
-  }
-
-  const { error: usersError } = await supabase
-    .from("users")
-    .update({ first_name: payload.firstName, last_name: payload.lastName })
-    .eq("id", user.id)
-
-  if (usersError) {
-    return { ok: false, error: backendError(usersError.message) }
   }
 
   return { ok: true, data: null }

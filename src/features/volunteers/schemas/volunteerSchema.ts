@@ -33,14 +33,14 @@ const PHONE_PATTERN = /^[0-9+()\-\s]{7,20}$/
 
 // --- Five independent field groups -----------------------------------------
 
-// first_name/last_name (users table) and phone/location (volunteers table)
-// are separate columns per Allan's migration (#13) - no single "full name" or
-// "email" column exists to write to. Email isn't collected here at all: it's
-// already on the users table, mirrored from auth.users by a DB trigger, and
-// is not updatable through this form (see access_control.sql's grants).
+// Only phone/location (volunteers table) live here. first_name/last_name
+// (users table) are collected at registration (see #19) and no longer
+// re-collected by this wizard - the component displays the already-saved
+// name as a prefilled, read-only value instead of asking for it twice.
+// Email isn't collected here at all either: it's already on the users
+// table, mirrored from auth.users by a DB trigger, and is not updatable
+// through this form (see access_control.sql's grants).
 export const personalDetailsSchema = z.object({
-  firstName: z.string().trim().min(1, "First name is required").max(120, "First name is too long"),
-  lastName: z.string().trim().min(1, "Last name is required").max(120, "Last name is too long"),
   phone: z.string().trim().regex(PHONE_PATTERN, "Enter a valid phone number"),
   location: z.string().trim().min(1, "Location is required"),
 })

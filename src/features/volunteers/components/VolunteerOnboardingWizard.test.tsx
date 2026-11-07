@@ -20,8 +20,6 @@ vi.mock("../api/actions", () => ({
 const mockSubmitAction = vi.mocked(submitVolunteerOnboardingAction)
 
 async function fillStepOne(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText("First name"), "Ada")
-  await user.type(screen.getByLabelText("Last name"), "Lovelace")
   await user.type(screen.getByLabelText("Phone"), "555-123-4567")
   await user.type(screen.getByLabelText("Location"), "London, UK")
 }
@@ -54,6 +52,23 @@ describe("VolunteerOnboardingWizard", () => {
     expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument()
   })
 
+  it("shows the name as a prefilled, read-only display instead of asking for it again", async () => {
+    const user = userEvent.setup()
+    render(<VolunteerOnboardingWizard displayFirstName="Ada" displayLastName="Lovelace" />)
+
+    const firstName = screen.getByLabelText("First name")
+    const lastName = screen.getByLabelText("Last name")
+
+    expect(firstName).toHaveValue("Ada")
+    expect(lastName).toHaveValue("Lovelace")
+    expect(firstName).toHaveAttribute("readonly")
+    expect(lastName).toHaveAttribute("readonly")
+
+    // Typing is a no-op on a read-only field - the display stays what was passed in.
+    await user.type(firstName, "x")
+    expect(firstName).toHaveValue("Ada")
+  })
+
   it("blocks advancing past step 1 and shows field errors when data is invalid", async () => {
     const user = userEvent.setup()
     render(<VolunteerOnboardingWizard />)
@@ -61,8 +76,7 @@ describe("VolunteerOnboardingWizard", () => {
     await user.click(screen.getByRole("button", { name: "Next" }))
 
     expect(screen.getByText("Step 1 of 3")).toBeInTheDocument()
-    expect(screen.getByText("First name is required")).toBeInTheDocument()
-    expect(screen.getByText("Last name is required")).toBeInTheDocument()
+    expect(screen.getByText("Location is required")).toBeInTheDocument()
   })
 
   it("advances through all three steps once each step's data is valid", async () => {
@@ -88,8 +102,8 @@ describe("VolunteerOnboardingWizard", () => {
     await user.click(screen.getByRole("button", { name: "Back" }))
 
     expect(screen.getByText("Step 1 of 3")).toBeInTheDocument()
-    expect(screen.getByLabelText("First name")).toHaveValue("Ada")
-    expect(screen.getByLabelText("Last name")).toHaveValue("Lovelace")
+    expect(screen.getByLabelText("Phone")).toHaveValue("555-123-4567")
+    expect(screen.getByLabelText("Location")).toHaveValue("London, UK")
   })
 
   it("blocks final submission with field errors when step 3 is invalid", async () => {
@@ -127,8 +141,8 @@ describe("VolunteerOnboardingWizard", () => {
     expect(mockSubmitAction).toHaveBeenCalledTimes(1)
     expect(mockSubmitAction).toHaveBeenCalledWith(
       expect.objectContaining({
-        firstName: "Ada",
-        lastName: "Lovelace",
+        phone: "555-123-4567",
+        location: "London, UK",
         weekdays: ["monday"],
         shiftPreference: "morning",
         skills: ["First aid"],
@@ -137,8 +151,8 @@ describe("VolunteerOnboardingWizard", () => {
       })
     )
 
-    const payloadPre = screen.getByText(/"firstName"/)
-    expect(within(payloadPre).getByText(/Ada/)).toBeInTheDocument()
+    const payloadPre = screen.getByText(/"phone"/)
+    expect(within(payloadPre).getByText(/555-123-4567/)).toBeInTheDocument()
 
     // The draft is cleared after a successful submit so PII doesn't linger.
     expect(loadDraft(FORM_ID)).toBeUndefined()
@@ -214,7 +228,7 @@ describe("VolunteerOnboardingWizard", () => {
 
     render(<VolunteerOnboardingWizard />)
 
-    expect(await screen.findByLabelText("First name")).toHaveValue("Ada")
-    expect(screen.getByLabelText("Last name")).toHaveValue("Lovelace")
+    expect(await screen.findByLabelText("Phone")).toHaveValue("555-123-4567")
+    expect(screen.getByLabelText("Location")).toHaveValue("London, UK")
   })
 })
