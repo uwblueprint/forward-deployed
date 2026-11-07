@@ -77,11 +77,54 @@ describe("signInWithEmail", () => {
 
 describe("signUpWithEmail", () => {
   it("rejects invalid input before calling Supabase", async () => {
-    const result = await signUpWithEmail({ email: "not-an-email", password: "short" });
+    const result = await signUpWithEmail({
+      firstName: "Jane",
+      lastName: "Doe",
+      email: "not-an-email",
+      password: "short",
+    });
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.type).toBe("validation");
+    }
+    expect(signUp).not.toHaveBeenCalled();
+  });
+
+  it("rejects missing first and last name before calling Supabase", async () => {
+    const result = await signUpWithEmail({
+      firstName: "",
+      lastName: "",
+      email: "new@example.com",
+      password: "password123",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.type).toBe("validation");
+      if (result.error.type === "validation") {
+        expect(result.error.fieldErrors.firstName).toBeDefined();
+        expect(result.error.fieldErrors.lastName).toBeDefined();
+      }
+    }
+    expect(signUp).not.toHaveBeenCalled();
+  });
+
+  it("rejects whitespace-only first and last name before calling Supabase", async () => {
+    const result = await signUpWithEmail({
+      firstName: "   ",
+      lastName: "   ",
+      email: "new@example.com",
+      password: "password123",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.type).toBe("validation");
+      if (result.error.type === "validation") {
+        expect(result.error.fieldErrors.firstName).toBeDefined();
+        expect(result.error.fieldErrors.lastName).toBeDefined();
+      }
     }
     expect(signUp).not.toHaveBeenCalled();
   });
@@ -93,6 +136,8 @@ describe("signUpWithEmail", () => {
     });
 
     const result = await signUpWithEmail({
+      firstName: "Jane",
+      lastName: "Doe",
       email: "new@example.com",
       password: "password123",
     });
@@ -104,6 +149,12 @@ describe("signUpWithEmail", () => {
     expect(signUp).toHaveBeenCalledWith({
       email: "new@example.com",
       password: "password123",
+      options: {
+        data: {
+          first_name: "Jane",
+          last_name: "Doe",
+        },
+      },
     });
   });
 
@@ -114,6 +165,8 @@ describe("signUpWithEmail", () => {
     });
 
     const result = await signUpWithEmail({
+      firstName: "Jane",
+      lastName: "Doe",
       email: "new@example.com",
       password: "password123",
     });
