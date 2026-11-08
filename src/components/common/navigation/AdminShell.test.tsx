@@ -2,7 +2,11 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
-import { AdminShell, DEFAULT_ADMIN_NAV_ITEMS } from "./AdminShell"
+import {
+  AdminShell,
+  DEFAULT_ADMIN_NAV_ITEMS,
+  DEFAULT_ADMIN_UTILITY_NAV_ITEMS,
+} from "./AdminShell"
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/dashboard",
@@ -17,7 +21,7 @@ describe("AdminShell", () => {
     )
 
     const nav = screen.getByRole("navigation", { name: "Admin" })
-    for (const item of DEFAULT_ADMIN_NAV_ITEMS) {
+    for (const item of [...DEFAULT_ADMIN_NAV_ITEMS, ...DEFAULT_ADMIN_UTILITY_NAV_ITEMS]) {
       expect(screen.getByRole("link", { name: item.label })).toHaveAttribute(
         "href",
         item.href
@@ -27,9 +31,21 @@ describe("AdminShell", () => {
     expect(screen.getByRole("main")).toHaveTextContent("Placeholder content")
   })
 
-  it("marks the current route link", () => {
+  it("matches the Figma admin nav order", () => {
+    expect(DEFAULT_ADMIN_NAV_ITEMS.map((item) => item.label)).toEqual([
+      "Overview",
+      "Volunteers",
+      "Applications",
+      "Events",
+      "Analytics",
+    ])
+    expect(DEFAULT_ADMIN_UTILITY_NAV_ITEMS.map((item) => item.label)).toEqual(["Settings"])
+  })
+
+  it("marks the current route link and titles the header with it", () => {
     render(<AdminShell>x</AdminShell>)
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+    expect(screen.getByRole("banner")).toHaveTextContent("Overview")
+    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute(
       "aria-current",
       "page"
     )
@@ -45,7 +61,12 @@ describe("AdminShell", () => {
       </AdminShell>
     )
     expect(screen.getByRole("link", { name: "Reports" })).toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "Dashboard" })).toBeNull()
+    expect(screen.queryByRole("link", { name: "Overview" })).toBeNull()
+  })
+
+  it("renders the account slot in the sidebar footer", () => {
+    render(<AdminShell account={<p>Account probe</p>}>x</AdminShell>)
+    expect(screen.getByText("Account probe")).toBeInTheDocument()
   })
 
   it("toggles the desktop sidebar by click and keyboard", async () => {
