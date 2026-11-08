@@ -35,4 +35,4 @@ export type {
   ResetPasswordInput,
   VerifyResetCodeInput,
 } from "./schemas";
-export { ForgotPasswordFlow } from "./components";
+export { ForgotPasswordFlow, SignInForm, SignUpForm } from "./components";

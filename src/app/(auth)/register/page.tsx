@@ -1,3 +1,5 @@
+import { SignUpForm } from "@/features/auth";
+
 export default function RegisterPage() {
-  return <h1>Register</h1>;
+  return <SignUpForm />;
 }
