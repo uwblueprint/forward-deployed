@@ -41,3 +41,26 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - run: npm test
+
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Postgres only, built from supabase/migrations. Needs no secrets.
+      - run: npx supabase db start
+
+      - run: npx supabase test db
+
+      - run: supabase/tests/concurrency.sh
+
+      # Fails when a migration changed the schema but database.types.ts wasn't regenerated.
+      - run: npm run db:types && git diff --exit-code src/lib/supabase/database.types.ts
