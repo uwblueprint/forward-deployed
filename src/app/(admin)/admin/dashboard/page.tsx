@@ -1,8 +1,9 @@
 import { Suspense } from "react";
-import { requireUser } from "@/lib/supabase/require-user";
+import { requireRole } from "@/features/auth";
 
 async function AdminDashboard() {
-  await requireUser();
+  // Admin area policy (admin + manager) is pending team confirmation.
+  await requireRole(["admin", "manager"]);
 
   return <h1>Admin dashboard</h1>;
 }

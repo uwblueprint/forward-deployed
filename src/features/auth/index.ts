@@ -8,3 +8,10 @@ export { signInWithEmail, signOut, signUpWithEmail } from "./api";
 export type { AuthError, AuthResult, AuthSessionData } from "./api";
 export { loginSchema, registerSchema } from "./schemas";
 export type { LoginInput, RegisterInput } from "./schemas";
+export type { Role, RoleResolver } from "./api";
+export {
+  getUserRole,
+  isProtectedPath,
+  requireRole,
+  requireRoleForRoute,
+} from "./api";

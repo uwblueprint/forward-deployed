@@ -114,7 +114,7 @@ through the team's secure channel, not Slack plaintext.
 | --- | --- | --- |
 | Supabase (org "UW Blueprint", Blueprint-controlled account) | Allan Yang, Rishab (TL) | Samay, Ethan, Angus (Developer) |
 | GitHub (`uwblueprint/forward-deployed`) | TBD | TBD |
-| Vercel | TBD | TBD |
+| Vercel | Samay | None (Hobby plan, single-user) |
 
 Secrets (Supabase keys, database password) live in: TBD.
 
@@ -154,6 +154,27 @@ Needs Node 22.18 or newer.
 
 A new project with no seed data has no admins. See "First admin" in
 `docs/role-model.md` for the two commands that create one.
+
+## Authorization
+
+Pages and layouts call `requireRole` from `@/features/auth`; route handlers
+call `requireRoleForRoute` instead, since `redirect`/`notFound` don't fit an
+API response. It returns a typed `{ ok: true, user }` /
+`{ ok: false, response }` result instead of throwing.
+
+Every server component that reads protected data must call `requireRole`
+itself before reading that data, even inside a protected layout. Layouts
+render in parallel with their pages, so a layout-level check can't gate what
+a page returns.
+
+`src/proxy.ts` is a convenience redirect for signed-out visitors, not the
+security gate, and is not a substitute for `requireRole`/`requireRoleForRoute`
+at each server boundary.
+
+Roles are read per request from `public.users.role` (see
+`docs/role-model.md`), deduplicated per request with React's `cache()`. Any
+missing or unknown role is denied. Never read roles from `app_metadata`,
+`user_metadata`, or JWT claims.
 
 ## Installed UI primitives
 
