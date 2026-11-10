@@ -1,8 +1,9 @@
 import { Suspense } from "react";
-import { requireUser } from "@/lib/supabase/require-user";
+import { requireRole } from "@/features/auth";
 
 async function VolunteerDashboard() {
-  await requireUser();
+  // Volunteer area policy (volunteer only) is pending team confirmation.
+  await requireRole("volunteer");
 
   return <h1>Volunteer dashboard</h1>;
 }

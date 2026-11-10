@@ -1,18 +1,16 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireRole } from "@/features/auth";
 
-async function RequireSession({ children }: { children: React.ReactNode }) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+async function RequireRole({ children }: { children: React.ReactNode }) {
+  // Volunteer area policy (volunteer only) is pending team confirmation.
+  await requireRole("volunteer");
 
-  if (!user) {
-    redirect("/login");
-  }
-
-  return children;
+  return (
+    <>
+      <p>Volunteer area</p>
+      {children}
+    </>
+  );
 }
 
 export default function VolunteerLayout({
@@ -22,9 +20,8 @@ export default function VolunteerLayout({
 }) {
   return (
     <div>
-      <p>Volunteer area</p>
       <Suspense>
-        <RequireSession>{children}</RequireSession>
+        <RequireRole>{children}</RequireRole>
       </Suspense>
     </div>
   );

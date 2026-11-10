@@ -1,18 +1,16 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireRole } from "@/features/auth";
 
-async function RequireSession({ children }: { children: React.ReactNode }) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+async function RequireRole({ children }: { children: React.ReactNode }) {
+  // Admin area policy (admin + manager) is pending team confirmation.
+  await requireRole(["admin", "manager"]);
 
-  if (!user) {
-    redirect("/login");
-  }
-
-  return children;
+  return (
+    <>
+      <p>Admin area</p>
+      {children}
+    </>
+  );
 }
 
 export default function AdminLayout({
@@ -22,9 +20,8 @@ export default function AdminLayout({
 }) {
   return (
     <div>
-      <p>Admin area</p>
       <Suspense>
-        <RequireSession>{children}</RequireSession>
+        <RequireRole>{children}</RequireRole>
       </Suspense>
     </div>
   );
