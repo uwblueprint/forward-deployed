@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
 
-import { FilterableDataTable, type DataTableColumnDef } from "./FilterableDataTable"
+import { DataTable, type DataTableColumnDef } from "./DataTable"
 
 type SampleRow = { id: string; name: string; count: number }
 
@@ -24,9 +24,9 @@ function columnValues(index: number) {
   return bodyRows.map((r) => within(r).getAllByRole("cell")[index].textContent)
 }
 
-describe("FilterableDataTable", () => {
+describe("DataTable", () => {
   it("renders headers and caller-supplied rows in original order", () => {
-    render(<FilterableDataTable data={rows} columns={columns} />)
+    render(<DataTable data={rows} columns={columns} />)
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
       "ID",
       "Name",
@@ -37,7 +37,7 @@ describe("FilterableDataTable", () => {
 
   it("sorts strings ascending then descending", async () => {
     const user = userEvent.setup()
-    render(<FilterableDataTable data={rows} columns={columns} />)
+    render(<DataTable data={rows} columns={columns} />)
     const header = screen.getByRole("button", { name: "Name" })
 
     await user.click(header)
@@ -57,7 +57,7 @@ describe("FilterableDataTable", () => {
 
   it("sorts numbers numerically (10 after 2), both directions", async () => {
     const user = userEvent.setup()
-    render(<FilterableDataTable data={rows} columns={columns} />)
+    render(<DataTable data={rows} columns={columns} />)
     const header = screen.getByRole("button", { name: "Count" })
 
     // TanStack sorts numeric columns descending first by default.
@@ -68,15 +68,33 @@ describe("FilterableDataTable", () => {
   })
 
   it("does not make non-sortable columns clickable", () => {
-    render(<FilterableDataTable data={rows} columns={columns} />)
+    render(<DataTable data={rows} columns={columns} />)
     expect(screen.queryByRole("button", { name: "ID" })).toBeNull()
   })
 
   it("shows an empty-state row spanning every column when there is no data", () => {
-    render(<FilterableDataTable data={[]} columns={columns} />)
-    const cell = screen.getByRole("cell", { name: "No results." })
+    render(<DataTable data={[]} columns={columns} />)
+    const cell = screen.getByRole("cell", { name: "No records found" })
     expect(cell).toHaveAttribute("colspan", String(columns.length))
     expect(screen.getAllByRole("row")).toHaveLength(2) // header + empty-state row
+  })
+
+  it("does not render hidden columns in the header or body", () => {
+    render(<DataTable data={rows} columns={columns} initialColumnVisibility={{ id: false }} />)
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Name",
+      "Count",
+    ])
+    expect(columnValues(0)).toEqual(["Charlie", "alice", "Bob"])
+    for (const r of screen.getAllByRole("row").slice(1)) {
+      expect(within(r).getAllByRole("cell")).toHaveLength(2)
+    }
+  })
+
+  it("spans only visible columns in the empty state", () => {
+    render(<DataTable data={[]} columns={columns} initialColumnVisibility={{ id: false }} />)
+    const cell = screen.getByRole("cell", { name: "No records found" })
+    expect(cell).toHaveAttribute("colspan", "2")
   })
 
   it("works with an unrelated row type without changes", async () => {
@@ -90,7 +108,7 @@ describe("FilterableDataTable", () => {
       { accessorKey: "date", header: "Date" },
     ]
     const user = userEvent.setup()
-    render(<FilterableDataTable data={events} columns={eventColumns} />)
+    render(<DataTable data={events} columns={eventColumns} />)
 
     await user.click(screen.getByRole("button", { name: "Date" }))
     expect(columnValues(0)).toEqual(["Cleanup", "Food drive"])
