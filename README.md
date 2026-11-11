@@ -40,6 +40,9 @@ different one, e.g. `npm run dev -- -p 43127`.
 | `npm run typecheck` | Generate Next.js route types, then run `tsc --noEmit` |
 | `npm test` | Run the Vitest suite once |
 | `npm run test:watch` | Run Vitest in watch mode |
+| `npm run db:seed` | Fill the database in `.env.local` with demo data |
+| `npm run db:types` | Regenerate `src/lib/supabase/database.types.ts` from the local database |
+| `npm run db:bootstrap-admin` | Create an organization and its first admin |
 
 ## Contributing
 
@@ -79,6 +82,8 @@ src/
       navigation/
       metrics/
   lib/
+    adapters/           Domain types and repository contracts
+    supabase/           Generated database types
     utils.ts            Re-exports the `cn` class-name helper
 components.json         shadcn/ui CLI configuration
 ```
@@ -128,15 +133,18 @@ To transfer ownership of an account:
 ## Database
 
 All schema changes go in migration files under `supabase/migrations/`. Never
-change tables from the Supabase dashboard. Who can read or change what is
-described in `docs/role-model.md`.
+change tables from the Supabase dashboard. New tables and functions start with
+no API access, so each migration grants what it needs. Who can read or change
+what is described in `docs/role-model.md`.
 
 Local database (needs Docker):
 
 ```bash
 npx supabase start      # start the local stack
 npx supabase db reset   # rebuild the local database from the migrations
-npx supabase test db    # run the access-control tests in supabase/tests/
+npx supabase test db    # run the database tests in supabase/tests/
+supabase/tests/concurrency.sh  # race two sessions for the last spot and an event delete
+npm run db:types        # regenerate src/lib/supabase/database.types.ts after a reset
 npx supabase stop       # stop the local stack
 ```
 
@@ -147,13 +155,20 @@ npm run db:seed
 ```
 
 The seed targets the project in `.env.local` and needs `SUPABASE_SECRET_KEY`.
-It creates 10 rows per table, with 22 users: an admin per organization, two
-managers, and 10 volunteers. All logins use `SEED_USER_PASSWORD`. Re-running
-replaces only the seed's own rows.
+It creates admin logins with a shared password, so never run it against a
+project with real users.
+It creates 10 rows in each main table, plus 22 users and memberships: an admin
+per organization, two managers, and 10 volunteers. One event is full, one has
+registration closed, and the invitations are open, expired, or revoked. The
+audit log fills in from the changes. All logins use `SEED_USER_PASSWORD`.
+Re-running replaces only the seed's own rows; the audit log keeps the old history.
 Needs Node 22.18 or newer.
 
-A new project with no seed data has no admins. See "First admin" in
-`docs/role-model.md` for the two commands that create one.
+A new project with no seed data has no admins. Have the first admin sign up, then:
+
+```bash
+npm run db:bootstrap-admin -- --email person@example.com --org "Org name"
+```
 
 ## Authorization
 
@@ -171,10 +186,11 @@ a page returns.
 security gate, and is not a substitute for `requireRole`/`requireRoleForRoute`
 at each server boundary.
 
-Roles are read per request from `public.users.role` (see
-`docs/role-model.md`), deduplicated per request with React's `cache()`. Any
-missing or unknown role is denied. Never read roles from `app_metadata`,
-`user_metadata`, or JWT claims.
+Roles are read per request from the user's row in `public.memberships` (see
+`docs/role-model.md`), deduplicated per request with React's `cache()`. A user
+who hasn't joined an organization yet counts as a volunteer; a failed lookup or
+unknown role is denied. Never read roles from `app_metadata`, `user_metadata`,
+or JWT claims.
 
 ## Installed UI primitives
 
