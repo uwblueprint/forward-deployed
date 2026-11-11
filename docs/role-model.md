@@ -1,35 +1,128 @@
 # Role model
 
-**Provisional (FOR-21).** Describes what `supabase/migrations/` enforces today.
+Decided in FOR-21 and FOR-58. Describes what `supabase/migrations/` enforces.
 
-## Roles
+## Roles and organizations
 
-`public.users.role` is `admin`, `manager`, or `volunteer` (default). Each user
-belongs to at most one organization (`users.organization_id`). Nobody picks
-their own role at signup.
+Each user has at most one membership (`public.memberships`): an organization
+and a role, `admin`, `manager`, or `volunteer`. Nobody picks their own role or
+organization at signup.
 
 | Role | Can do, inside their own organization only |
 | --- | --- |
-| Admin | Everything a manager can, plus change roles, organization settings, and custom fields |
+| Admin | Everything a manager can, plus change roles, invite people, read the audit log, write internal notes on applications, and edit organization settings and custom fields |
 | Manager | Review applications, edit volunteer profiles, manage events, registrations, and attendance |
 | Volunteer | Their own profile, applications, and registrations; browse published events |
 
 Manager permissions are a placeholder until the PRD defines them.
 
-The role column isn't writable directly. Admins change other users' roles with:
+Memberships are read-only through the API. Admins change other users' roles with:
 
 ```ts
 await supabase.rpc("set_user_role", { target_user_id: userId, new_role: "manager" })
 ```
 
-Read the role on the server per request, after `supabase.auth.getUser()`:
+Pages and route handlers check roles with `requireRole` and
+`requireRoleForRoute` from `src/features/auth`, which treat a user with no
+membership as a volunteer. To read the membership directly on the server, after
+`supabase.auth.getUser()` (`null` means they haven't joined an organization yet):
 
 ```ts
-const { data } = await supabase.from("users").select("role, organization_id").eq("id", user.id).single()
+const { data: membership } = await supabase
+  .from("memberships")
+  .select("organization_id, role")
+  .eq("user_id", user.id)
+  .maybeSingle()
 ```
 
-Roles live in a table, not JWT claims, so a change applies on the next request
-instead of after a token refresh. Route guards are UX only; the database enforces access.
+Roles live in a table, not JWT claims or `app_metadata`, so a change applies on
+the next request instead of after a token refresh. Route guards are UX only; the
+database enforces access.
+
+Volunteer profiles belong to an organization too, so a person's applications,
+notes, and registrations stay with the organization they were made in. Someone
+can fill in their profile before joining; it joins the organization with them,
+as pending. They can't apply or register until then. A profile that already has
+applications or registrations never moves to another organization.
+
+One organization per user is enforced by the `memberships_one_org_per_user`
+constraint. Allowing several means dropping it and replacing every
+`current_org_id()` check, in the helpers and the policies, with a check against
+the row's organization.
+
+## Joining an organization
+
+Each deployment runs in single-organization mode (FOR-90): it has exactly one
+organization, and everyone who signs up joins it as a volunteer, with nobody
+picking an organization or typing a code. `private.default_organization_id()`
+finds it. If a project somehow has more than one organization, signups fail
+with an error instead of guessing.
+
+Invitations bring in staff. Admins invite an email address with a role:
+
+```ts
+const { data } = await supabase.rpc("create_invitation", { invitee_email, invitee_role: "manager" })
+// data[0].token goes in the invite link. It's returned once; only its hash is stored.
+```
+
+The invitee signs up or signs in with that address, confirms it, and redeems the token:
+
+```ts
+const { data: organizationId } = await supabase.rpc("redeem_invitation", { invitation_token })
+```
+
+If they signed up first, redeeming raises their role to the invited one; it
+never lowers a role. To change the role of someone already in the organization,
+use `set_user_role` instead of an invitation.
+
+Invitations expire after 7 days and work once. Inviting the same address again
+replaces the open invitation. Admins list their organization's invitations
+from `invitations` and cancel one with `revoke_invitation`. An invitation also
+stops working if the admin who issued it is demoted or removed. Redeeming
+fails with a fixed message when the invitation is unknown, used, revoked, or
+expired, is for another address, the address isn't confirmed, or the user
+belongs to another organization. Retrying after a success returns the same
+organization.
+
+The confirmed-address check only means something while email confirmation is
+on in the hosted project (Authentication settings). Keep it on. Local dev has
+it off, so local signups are confirmed automatically.
+
+## Setting up a new project
+
+1. Create the organization before anyone signs up:
+
+   ```bash
+   npm run db:bootstrap-admin -- --org "Org name"
+   ```
+
+   Anyone who signed up before this joins it as a volunteer.
+2. Have the first admin sign up and confirm their email.
+3. Make them the admin. Nobody can promote themselves and only admins can
+   promote others, so this one is server-side:
+
+   ```bash
+   npm run db:bootstrap-admin -- --email person@example.com
+   ```
+
+The script uses the secret key in `.env.local` and is safe to re-run. The seed
+sets up its demo organization the same way.
+
+## Types
+
+`src/lib/supabase/database.types.ts` is generated from the local database.
+After adding a migration, rebuild the database from the migrations, then
+regenerate and commit the file. CI fails if it's out of date.
+
+```bash
+npx supabase db reset
+npm run db:types
+```
+
+The clients in `src/lib/supabase/` pass `Database`, so queries and RPCs are
+typed. `src/lib/adapters/types.ts` adds the user with their membership, the
+volunteer and event columns the API lets you write, and the volunteer and
+event repository contracts.
 
 ## Applications and volunteer status
 
@@ -41,45 +134,73 @@ always mirrors the latest application.
 | --- | --- |
 | No profile | Create a profile and apply |
 | `pending` | Edit their profile, browse published events |
-| `approved` | Also register for published events that haven't started |
+| `approved` | Also register for open events |
 | `rejected` | Same as pending, and reapply |
 
-Volunteers can cancel their own registrations until attendance is recorded or
-the event is completed. They still see events they registered for after those
-are cancelled or completed. Drafts are staff-only.
+The applicant sees `applicant_message` as soon as it's saved. A rejection with
+a blank message gets the organization's `default_rejection_message`, which
+admins set. Approval clears the message.
 
-## Signup and organizations
+Admin-only notes go in `application_notes`. That's a separate table because a
+column grant can't hide a column from applicants: admins and applicants are
+the same database role. Nobody reads or writes notes on their own application.
 
-A trigger creates the `public.users` row on signup: role `volunteer`, no
-organization, name from signup metadata. Role and organization are never read
-from signup data. Until assigned an organization, a user sees only their own
-rows. *Open:* how volunteers get an organization.
+## Events and registrations
 
-## First admin
+- An event is open while it's published, hasn't started, and is before its
+  `registration_deadline`, if it has one.
+- Capacity is checked after access rules, with the event row locked, so two
+  people can't both take the last spot. It applies to staff and server-side
+  writes too; raise the capacity to add more. A full event fails with
+  `This event is full` (code 23514).
+- "Full" and "closed" are derived, not stored. Read spots taken with
+  `from("events").select("*, registration_count")`. It counts only events the
+  caller can see and doesn't reveal who registered.
+- Volunteers can cancel until attendance is recorded or the event is completed.
+  They still see events they registered for after those are cancelled or
+  completed. Drafts are staff-only.
+- An event with any registrations, cancelled ones included, can't be deleted;
+  cancel it instead, which keeps attendance history. Staff can delete a
+  registration until attendance is recorded or the event is completed.
+- Recorded attendance can be corrected but not cleared, and a completed event
+  can't be reopened.
+- Hours aren't stored. Derive them from `ends_at - starts_at` for attended
+  registrations.
 
-Nobody can promote themselves and only admins can promote others, so the first
-admin must be created server-side. The seed does this in dev. For a new project,
-have the person sign up, then run:
+## Audit log
 
-```bash
-npx supabase db query --linked "insert into public.organizations (name) values ('Org name') returning id"
-npx supabase db query --linked "update public.users set role = 'admin', organization_id = '<org id>' where email = '<their email>'"
-```
+`audit_log` records application decisions, role changes (joining and leaving
+included), invitations issued, revoked, and redeemed, and event status changes
+(creation and deletion included), with who made each one and when. A null actor means a server-side change. Admins read
+their organization's history. Nobody can change, delete, or truncate entries
+through the API or with the secret key, and a trigger refuses it for the
+database owner too, even in replica mode. Deleting a user or organization
+leaves its history in place.
 
-Without this step, a project where the seed never runs has no admins.
+## Signup
+
+A trigger creates the `public.users` row on signup, with the name from signup
+metadata, and makes them a volunteer in the organization. It works without an
+email (e.g. phone signups). It never reads role or organization from signup
+data. A user who signed up before the organization existed sees only their own
+rows until it's created.
 
 ## Locked fields
 
 - `users.email` mirrors `auth.users`; change it with `supabase.auth.updateUser({ email })`.
-- `users.role` changes only through `set_user_role`, by an admin, for someone else in their org.
-- `users.organization_id` and `volunteers.status` change only server-side or via applications.
+- Memberships are created at signup and change only through `set_user_role`, invitations, and server-side scripts.
+- `volunteers.organization_id` comes from the owner's membership, or is filled in when they join, and never changes after that.
+- `volunteers.status` changes only through applications.
 - Only the volunteer records their consent; the database sets the time.
 - Only staff record attendance.
+- The database sets `applications.reviewed_by`, `reviewed_at`, and
+  `application_notes.updated_by`.
 - Ids, `user_id`, `event_id`, `volunteer_id`, and event `organization_id` never change after insert.
 
-Tests: `supabase/tests/database/access_control.test.sql`.
+Tests: `supabase/tests/database/`.
 
 ## Known gaps
 
-- Event capacity is not enforced on registration.
-- TypeScript types come after this schema merges (FOR-21).
+- The default rejection wording needs PM sign-off; the seed's is placeholder copy.
+- No `registration_count` column yet. Add a trigger-maintained one if counting gets slow.
+- No screens for invitations or the audit log yet.

@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -27,6 +27,19 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-muted: var(--destructive-muted);
+  --color-brand: var(--brand);
+  --color-selected: var(--selected);
+  --color-info: var(--info);
+  --color-info-muted: var(--info-muted);
+  --color-info-border: var(--info-border);
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-warning-border: var(--warning-border);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -39,82 +52,161 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  /* Figma Radius steps. Controls (rounded-lg, rounded-md) are 4px; cards and dialogs (rounded-xl) are 8px. */
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: calc(var(--radius) * 2);
+  --radius-2xl: calc(var(--radius) * 3);
+  --radius-3xl: calc(var(--radius) * 4);
+  --radius-4xl: calc(var(--radius) * 6);
 }
 
+/*
+ * Values come from Figma "Design System [ShadCN]" (Semantic Color Tokens), converted
+ * from hex to oklch. Comments name the Figma semantic token and the palette step.
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --background: oklch(0.985 0.001 106.423); /* bg/primary: stone/50 */
+  --foreground: oklch(0.216 0.006 56.043); /* text/primary: stone/900 */
+  --card: oklch(0.985 0.001 106.423); /* bg/primary: stone/50 */
+  --card-foreground: oklch(0.216 0.006 56.043); /* text/primary: stone/900 */
+  --popover: oklch(0.985 0.001 106.423); /* bg/primary: stone/50 */
+  --popover-foreground: oklch(0.216 0.006 56.043); /* text/primary: stone/900 */
+  --primary: oklch(0.546 0.215 262.881); /* bg/brand: blue/600 */
+  --primary-foreground: oklch(1 0 0); /* text/on-brand: white */
+  --secondary: oklch(0.97 0.001 106.424); /* bg/secondary: stone/100 */
+  --secondary-foreground: oklch(0.216 0.006 56.043); /* text/primary: stone/900 */
+  --muted: oklch(0.97 0.001 106.424); /* bg/secondary: stone/100 */
+  --muted-foreground: oklch(0.444 0.01 73.639); /* text/secondary: stone/600 */
+  --accent: oklch(0.923 0.003 48.717); /* bg/hover: stone/200 */
+  --accent-foreground: oklch(0.216 0.006 56.043); /* text/primary: stone/900 */
+  --destructive: oklch(0.577 0.215 27.325); /* button/destructive/bg: red/600 */
+  --destructive-foreground: oklch(1 0 0); /* button/destructive/fg: white */
+  --destructive-muted: oklch(0.936 0.031 17.717); /* bg/danger: red/100 */
+  --border: oklch(0.923 0.003 48.717); /* border/subtle: stone/200 */
+  --input: oklch(0.923 0.003 48.717); /* border/subtle: stone/200 */
+  --ring: oklch(0.546 0.215 262.881); /* border/focus: blue/600 */
+  /* Colours shadcn has no slot for. */
+  --brand: oklch(0.488 0.217 264.376); /* text/brand: blue/700 */
+  --selected: oklch(0.932 0.032 255.585); /* bg/selected: blue/100 */
+  --info: oklch(0.488 0.217 264.376); /* text/info: blue/700 */
+  --info-muted: oklch(0.932 0.032 255.585); /* bg/info: blue/100 */
+  --info-border: oklch(0.546 0.215 262.881); /* border/info: blue/600 */
+  --success: oklch(0.527 0.137 150.069); /* text/success: green/700 */
+  --success-muted: oklch(0.962 0.043 156.743); /* bg/success: green/100 */
+  --success-border: oklch(0.627 0.17 149.214); /* border/success: green/600 */
+  --warning: oklch(0.555 0.146 48.998); /* text/warning: amber/700 */
+  --warning-muted: oklch(0.962 0.058 95.617); /* bg/warning: amber/100 */
+  --warning-border: oklch(0.666 0.157 58.318); /* border/warning: amber/600 */
+  /* The design system has no chart palette yet; stock values kept. */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.25rem; /* Radius/xs: buttons, inputs, menu and nav items */
+  --sidebar: oklch(0.97 0.001 106.424); /* bg/canvas: stone/100 */
+  --sidebar-foreground: oklch(0.216 0.006 56.043); /* text/primary: stone/900 */
+  --sidebar-primary: oklch(0.546 0.215 262.881); /* bg/brand: blue/600 */
+  --sidebar-primary-foreground: oklch(1 0 0); /* text/on-brand: white */
+  --sidebar-accent: oklch(0.923 0.003 48.717); /* bg/hover: stone/200 */
+  --sidebar-accent-foreground: oklch(0.216 0.006 56.043); /* text/primary: stone/900 */
+  --sidebar-border: oklch(0.869 0.004 56.366); /* border/default: stone/300 */
+  --sidebar-ring: oklch(0.546 0.215 262.881); /* border/focus: blue/600 */
 }
 
+/*
+ * The design system defines light mode only. Dark values are provisional, derived
+ * from the same palette by mirroring the stone ramp, pending Flora/Jay review.
+ */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: oklch(0.268 0.006 34.298); /* stone/800 */
+  --foreground: oklch(0.985 0.001 106.423); /* stone/50 */
+  --card: oklch(0.268 0.006 34.298); /* stone/800 */
+  --card-foreground: oklch(0.985 0.001 106.423); /* stone/50 */
+  --popover: oklch(0.268 0.006 34.298); /* stone/800 */
+  --popover-foreground: oklch(0.985 0.001 106.423); /* stone/50 */
+  --primary: oklch(0.546 0.215 262.881); /* blue/600 */
+  --primary-foreground: oklch(1 0 0); /* white */
+  --secondary: oklch(0.374 0.009 67.558); /* stone/700 */
+  --secondary-foreground: oklch(0.985 0.001 106.423); /* stone/50 */
+  --muted: oklch(0.374 0.009 67.558); /* stone/700 */
+  --muted-foreground: oklch(0.716 0.009 56.259); /* stone/400 */
+  --accent: oklch(0.374 0.009 67.558); /* stone/700 */
+  --accent-foreground: oklch(0.985 0.001 106.423); /* stone/50 */
+  --destructive: oklch(0.637 0.208 25.331); /* red/500 */
+  --destructive-foreground: oklch(1 0 0); /* white */
+  --destructive-muted: oklch(0.396 0.133 25.723); /* red/900 */
+  --border: oklch(0.374 0.009 67.558); /* stone/700 */
+  --input: oklch(0.374 0.009 67.558); /* stone/700 */
+  --ring: oklch(0.623 0.188 259.815); /* blue/500 */
+  --brand: oklch(0.809 0.096 251.813); /* blue/300 */
+  --selected: oklch(0.379 0.138 265.522); /* blue/900 */
+  --info: oklch(0.809 0.096 251.813); /* blue/300 */
+  --info-muted: oklch(0.379 0.138 265.522); /* blue/900 */
+  --info-border: oklch(0.623 0.188 259.815); /* blue/500 */
+  --success: oklch(0.8 0.182 151.711); /* green/400 */
+  --success-muted: oklch(0.393 0.09 152.535); /* green/900 */
+  --success-border: oklch(0.723 0.192 149.579); /* green/500 */
+  --warning: oklch(0.837 0.164 84.429); /* amber/400 */
+  --warning-muted: oklch(0.414 0.105 45.904); /* amber/900 */
+  --warning-border: oklch(0.769 0.165 70.08); /* amber/500 */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: oklch(0.216 0.006 56.043); /* stone/900 */
+  --sidebar-foreground: oklch(0.985 0.001 106.423); /* stone/50 */
+  --sidebar-primary: oklch(0.546 0.215 262.881); /* blue/600 */
+  --sidebar-primary-foreground: oklch(1 0 0); /* white */
+  --sidebar-accent: oklch(0.374 0.009 67.558); /* stone/700 */
+  --sidebar-accent-foreground: oklch(0.985 0.001 106.423); /* stone/50 */
+  --sidebar-border: oklch(0.374 0.009 67.558); /* stone/700 */
+  --sidebar-ring: oklch(0.623 0.188 259.815); /* blue/500 */
+}
+
+/* Figma text styles (Typography page). Every style uses Geist with -0.6% tracking. */
+@theme {
+  --tracking-body: -0.006em;
+  --text-header-lg: 1.75rem;
+  --text-header-lg--line-height: 2.25rem;
+  --text-header-lg--letter-spacing: -0.0075em;
+  --text-header-lg--font-weight: 500;
+  --text-header-md: 1.25rem;
+  --text-header-md--line-height: 2rem;
+  --text-header-md--letter-spacing: var(--tracking-body);
+  --text-header-md--font-weight: 500;
+  --text-header-sm: 1rem;
+  --text-header-sm--line-height: 1.5rem;
+  --text-header-sm--letter-spacing: var(--tracking-body);
+  --text-header-sm--font-weight: 500;
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.5rem;
+  --text-body-lg--letter-spacing: var(--tracking-body);
+  --text-body-md: 1rem;
+  --text-body-md--line-height: 1.5rem;
+  --text-body-md--letter-spacing: var(--tracking-body);
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.5rem;
+  --text-body-sm--letter-spacing: var(--tracking-body);
+  --text-caption-lg: 1rem;
+  --text-caption-lg--line-height: 1.5rem;
+  --text-caption-lg--letter-spacing: var(--tracking-body);
+  --text-caption-md: 0.875rem;
+  --text-caption-md--line-height: 1.5rem;
+  --text-caption-md--letter-spacing: var(--tracking-body);
+  --text-caption-sm: 0.75rem;
+  --text-caption-sm--line-height: 1.5rem;
+  --text-caption-sm--letter-spacing: var(--tracking-body);
+  --text-button: 0.875rem;
+  --text-button--line-height: 1.5rem;
+  --text-button--letter-spacing: var(--tracking-body);
+  --text-button--font-weight: 500;
+  --text-code: 0.875rem;
+  --text-code--line-height: 1.25rem;
+  --text-code--font-weight: 300;
 }
 
 @layer base {
@@ -125,6 +217,6 @@
     @apply bg-background text-foreground;
   }
   html {
-    @apply font-sans;
+    @apply font-sans tracking-body;
   }
 }

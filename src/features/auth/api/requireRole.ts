@@ -19,26 +19,30 @@ function isRole(value: unknown): value is Role {
 }
 
 /**
- * Reads `public.users.role` for one user id (see docs/role-model.md),
- * deduplicated per request via React's `cache()` so multiple role checks
- * in the same request issue only one query. Fail-closed: a query error, a
- * missing row, or an unrecognized role value all resolve to null. Never
- * reads role from `app_metadata`, `user_metadata`, or JWT claims.
+ * Reads the role from the user's membership in `public.memberships` (see
+ * docs/role-model.md), deduplicated per request via React's `cache()` so
+ * multiple role checks in the same request issue only one query. A user who
+ * hasn't joined an organization yet is a volunteer. Fail-closed: a query
+ * error or an unrecognized role value resolves to null. Never reads role from
+ * `app_metadata`, `user_metadata`, or JWT claims.
  */
 const resolveRoleById = cache(
   async (userId: string): Promise<Role | null> => {
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
-      .from("users")
+      .from("memberships")
       .select("role")
-      .eq("id", userId)
-      .single();
+      .eq("user_id", userId)
+      .maybeSingle();
 
-    if (error || !data || !isRole(data.role)) {
+    if (error) {
       return null;
     }
+    if (!data) {
+      return "volunteer";
+    }
 
-    return data.role;
+    return isRole(data.role) ? data.role : null;
   },
 );
 

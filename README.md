@@ -40,6 +40,9 @@ different one, e.g. `npm run dev -- -p 43127`.
 | `npm run typecheck` | Generate Next.js route types, then run `tsc --noEmit` |
 | `npm test` | Run the Vitest suite once |
 | `npm run test:watch` | Run Vitest in watch mode |
+| `npm run db:seed` | Fill the database in `.env.local` with demo data |
+| `npm run db:types` | Regenerate `src/lib/supabase/database.types.ts` from the local database |
+| `npm run db:bootstrap-admin` | Create the organization or make someone its admin |
 
 ## Contributing
 
@@ -79,6 +82,8 @@ src/
       navigation/
       metrics/
   lib/
+    adapters/           Repositories: contracts, Supabase and mock versions, and the switch
+    supabase/           Generated database types
     utils.ts            Re-exports the `cn` class-name helper
 components.json         shadcn/ui CLI configuration
 ```
@@ -107,6 +112,8 @@ through the team's secure channel, not Slack plaintext.
 | `NEXT_PUBLIC_SUPABASE_URL` | Browser and server | Project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser and server | Holds the publishable key (`sb_publishable_...`) |
 | `SUPABASE_SECRET_KEY` | Server-only scripts | Secret key (`sb_secret_...`); bypasses RLS |
+| `SEED_USER_PASSWORD` | `npm run db:seed` | Password for every seed login; dev data only |
+| `NEXT_PUBLIC_DATA_SOURCE` | Server | `supabase` (default) or `mock` for in-memory demo data |
 
 ## Accounts & ownership
 
@@ -128,15 +135,18 @@ To transfer ownership of an account:
 ## Database
 
 All schema changes go in migration files under `supabase/migrations/`. Never
-change tables from the Supabase dashboard. Who can read or change what is
-described in `docs/role-model.md`.
+change tables from the Supabase dashboard. New tables and functions start with
+no API access, so each migration grants what it needs. Who can read or change
+what is described in `docs/role-model.md`.
 
 Local database (needs Docker):
 
 ```bash
 npx supabase start      # start the local stack
 npx supabase db reset   # rebuild the local database from the migrations
-npx supabase test db    # run the access-control tests in supabase/tests/
+npx supabase test db    # run the database tests in supabase/tests/
+supabase/tests/concurrency.sh  # race two sessions for the last spot and an event delete
+npm run db:types        # regenerate src/lib/supabase/database.types.ts after a reset
 npx supabase stop       # stop the local stack
 ```
 
@@ -147,13 +157,26 @@ npm run db:seed
 ```
 
 The seed targets the project in `.env.local` and needs `SUPABASE_SECRET_KEY`.
-It creates 10 rows per table, with 22 users: an admin per organization, two
-managers, and 10 volunteers. All logins use `SEED_USER_PASSWORD`. Re-running
-replaces only the seed's own rows.
+It creates admin logins with a shared password, so never run it against a
+project with real users.
+The project runs in single-organization mode, so the seed makes one
+organization with 12 users (an admin, a manager, and 10 volunteers) and 10
+volunteers, applications, events, registrations, and invitations. One event is
+full, one has registration closed, and the invitations are open, expired, or
+revoked. The audit log fills in from the changes. All logins use
+`SEED_USER_PASSWORD`. Re-running replaces only the seed's own rows, including
+those from older seeds; the audit log keeps the old history. It stops if the
+project has another organization.
 Needs Node 22.18 or newer.
 
-A new project with no seed data has no admins. See "First admin" in
-`docs/role-model.md` for the two commands that create one.
+A new project with no seed data has no organization or admins. Create the
+organization before anyone signs up, then promote the first admin after they
+sign up (see "Setting up a new project" in `docs/role-model.md`):
+
+```bash
+npm run db:bootstrap-admin -- --org "Org name"
+npm run db:bootstrap-admin -- --email person@example.com
+```
 
 ## Authorization
 
@@ -171,10 +194,30 @@ a page returns.
 security gate, and is not a substitute for `requireRole`/`requireRoleForRoute`
 at each server boundary.
 
-Roles are read per request from `public.users.role` (see
-`docs/role-model.md`), deduplicated per request with React's `cache()`. Any
-missing or unknown role is denied. Never read roles from `app_metadata`,
-`user_metadata`, or JWT claims.
+Roles are read per request from the user's row in `public.memberships` (see
+`docs/role-model.md`), deduplicated per request with React's `cache()`. A user
+who hasn't joined an organization yet counts as a volunteer; a failed lookup or
+unknown role is denied. Never read roles from `app_metadata`, `user_metadata`,
+or JWT claims.
+
+## Data access
+
+Server code reads and writes volunteers and events through `volunteerRepo` and
+`eventRepo` from `@/lib/adapters`. With `NEXT_PUBLIC_DATA_SOURCE=mock` they
+serve in-memory demo data (two organizations, 12 volunteers, 6 events) after a
+simulated 200 ms delay, so screens work without a database. Otherwise they go
+through Supabase with the signed-in user's permissions. Changing the variable
+switches every caller; no component code changes.
+
+`@/lib/adapters` is server-only, since the Supabase repositories use the
+request's cookies. Client components call a Server Action or route handler
+that uses it.
+
+```ts
+import { eventRepo } from "@/lib/adapters"
+
+const events = await eventRepo.getAll()
+```
 
 ## Auth emails
 
@@ -200,11 +243,20 @@ locally; signup confirmation is tested against a hosted project.
 
 ## Installed UI primitives
 
-`button`, `input`, `label`, `card`, `dialog`, `dropdown-menu`, `select`,
-`table`, `badge`, `tabs`.
+`accordion`, `alert`, `aspect-ratio`, `badge`, `button`, `card`, `checkbox`,
+`collapsible`, `command`, `dialog`, `dropdown-menu`, `hover-card`, `input`,
+`input-group`, `label`, `navigation-menu`, `popover`, `scroll-area`, `select`,
+`table`, `tabs`, `textarea`, `tooltip`. All are exported from
+`src/components/ui/index.ts`.
 
-See them all rendered together at `/showcase` (`src/app/showcase/page.tsx`)
-when running the dev server.
+`tooltip` needs a `TooltipProvider` ancestor before use.
+
+Not installed on purpose: `sidebar`. The admin shell is hand-rolled in
+`src/components/common/navigation/AdminShell.tsx` and already matches the Figma
+Sidebar page (see FOR-102); don't add shadcn's `sidebar` alongside it.
+
+The original ten are rendered together at `/showcase`
+(`src/app/showcase/page.tsx`) when running the dev server.
 
 Add more with:
 

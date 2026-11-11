@@ -2,7 +2,18 @@
 
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { requestPasswordReset, updatePassword, verifyResetCode } from "./auth";
+import {
+  requestPasswordReset,
+  signOut,
+  updatePassword,
+  verifyResetCode,
+} from "./auth";
+import type { AuthResult } from "./auth";
+
+/** Server Action wrapper so Client Components (e.g. the account menu) can sign out. */
+export async function signOutAction(): Promise<AuthResult<null>> {
+  return signOut();
+}
 
 export type ResetFlowActionState = {
   status: "idle" | "error" | "success";

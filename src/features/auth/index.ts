@@ -8,6 +8,7 @@ export {
   requestPasswordReset,
   signInWithEmail,
   signOut,
+  signOutAction,
   signUpWithEmail,
   updatePassword,
   verifyResetCode,

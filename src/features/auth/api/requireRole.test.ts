@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockGetUser, mockSingle, RedirectError, NotFoundError } = vi.hoisted(
+const { mockGetUser, mockFrom, mockEq, mockMaybeSingle, RedirectError, NotFoundError } = vi.hoisted(
   () => {
     class RedirectError extends Error {
       constructor(public readonly url: string) {
@@ -16,7 +16,9 @@ const { mockGetUser, mockSingle, RedirectError, NotFoundError } = vi.hoisted(
 
     return {
       mockGetUser: vi.fn(),
-      mockSingle: vi.fn(),
+      mockFrom: vi.fn(),
+      mockEq: vi.fn(),
+      mockMaybeSingle: vi.fn(),
       RedirectError,
       NotFoundError,
     };
@@ -26,10 +28,10 @@ const { mockGetUser, mockSingle, RedirectError, NotFoundError } = vi.hoisted(
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(async () => ({
     auth: { getUser: mockGetUser },
-    from: vi.fn(() => ({
+    from: mockFrom.mockImplementation(() => ({
       select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: mockSingle,
+        eq: mockEq.mockImplementation(() => ({
+          maybeSingle: mockMaybeSingle,
         })),
       })),
     })),
@@ -61,14 +63,16 @@ beforeEach(() => {
 });
 
 describe("getUserRole", () => {
-  it("returns the role for a valid row", async () => {
-    mockSingle.mockResolvedValue({ data: { role: "manager" }, error: null });
+  it("returns the role from the user's membership", async () => {
+    mockMaybeSingle.mockResolvedValue({ data: { role: "manager" }, error: null });
 
     await expect(getUserRole(user)).resolves.toBe("manager");
+    expect(mockFrom).toHaveBeenCalledWith("memberships");
+    expect(mockEq).toHaveBeenCalledWith("user_id", user.id);
   });
 
   it("returns null on a query error", async () => {
-    mockSingle.mockResolvedValue({
+    mockMaybeSingle.mockResolvedValue({
       data: null,
       error: { message: "boom" },
     });
@@ -76,14 +80,14 @@ describe("getUserRole", () => {
     await expect(getUserRole(user)).resolves.toBeNull();
   });
 
-  it("returns null when there is no row", async () => {
-    mockSingle.mockResolvedValue({ data: null, error: null });
+  it("returns volunteer when the user hasn't joined an organization", async () => {
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
 
-    await expect(getUserRole(user)).resolves.toBeNull();
+    await expect(getUserRole(user)).resolves.toBe("volunteer");
   });
 
   it("returns null for an unknown role value", async () => {
-    mockSingle.mockResolvedValue({
+    mockMaybeSingle.mockResolvedValue({
       data: { role: "superadmin" },
       error: null,
     });
@@ -101,9 +105,9 @@ describe("requireRole", () => {
     expect(notFound).not.toHaveBeenCalled();
   });
 
-  it("hits notFound for a signed-in user when the default resolver finds no role row", async () => {
+  it("hits notFound for a signed-in user without an admin membership", async () => {
     mockGetUser.mockResolvedValue({ data: { user } });
-    mockSingle.mockResolvedValue({ data: null, error: null });
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
 
     await expect(requireRole("admin")).rejects.toThrow(NotFoundError);
     expect(notFound).toHaveBeenCalled();
@@ -195,7 +199,7 @@ describe("requireRoleForRoute", () => {
 
   it("returns 403 for the default resolver when the role query returns no row", async () => {
     mockGetUser.mockResolvedValue({ data: { user } });
-    mockSingle.mockResolvedValue({ data: null, error: null });
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
 
     const result = await requireRoleForRoute("admin");
 
