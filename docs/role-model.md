@@ -22,8 +22,10 @@ Memberships are read-only through the API. Admins change other users' roles with
 await supabase.rpc("set_user_role", { target_user_id: userId, new_role: "manager" })
 ```
 
-Read the membership on the server per request, after `supabase.auth.getUser()`.
-`null` means the user hasn't joined an organization yet.
+Pages and route handlers check roles with `requireRole` and
+`requireRoleForRoute` from `src/features/auth`, which treat a user with no
+membership as a volunteer. To read the membership directly on the server, after
+`supabase.auth.getUser()` (`null` means they haven't joined an organization yet):
 
 ```ts
 const { data: membership } = await supabase

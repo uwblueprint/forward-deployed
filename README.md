@@ -186,10 +186,11 @@ a page returns.
 security gate, and is not a substitute for `requireRole`/`requireRoleForRoute`
 at each server boundary.
 
-Roles are read per request from `public.users.role` (see
-`docs/role-model.md`), deduplicated per request with React's `cache()`. Any
-missing or unknown role is denied. Never read roles from `app_metadata`,
-`user_metadata`, or JWT claims.
+Roles are read per request from the user's row in `public.memberships` (see
+`docs/role-model.md`), deduplicated per request with React's `cache()`. A user
+who hasn't joined an organization yet counts as a volunteer; a failed lookup or
+unknown role is denied. Never read roles from `app_metadata`, `user_metadata`,
+or JWT claims.
 
 ## Installed UI primitives
 
