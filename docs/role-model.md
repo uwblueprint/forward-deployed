@@ -52,10 +52,16 @@ the row's organization.
 
 ## Joining an organization
 
-Admins invite people by email address and role:
+Each deployment runs in single-organization mode (FOR-90): it has exactly one
+organization, and everyone who signs up joins it as a volunteer, with nobody
+picking an organization or typing a code. `private.default_organization_id()`
+finds it. If a project somehow has more than one organization, signups fail
+with an error instead of guessing.
+
+Invitations bring in staff. Admins invite an email address with a role:
 
 ```ts
-const { data } = await supabase.rpc("create_invitation", { invitee_email, invitee_role: "volunteer" })
+const { data } = await supabase.rpc("create_invitation", { invitee_email, invitee_role: "manager" })
 // data[0].token goes in the invite link. It's returned once; only its hash is stored.
 ```
 
@@ -65,31 +71,42 @@ The invitee signs up or signs in with that address, confirms it, and redeems the
 const { data: organizationId } = await supabase.rpc("redeem_invitation", { invitation_token })
 ```
 
+If they signed up first, redeeming raises their role to the invited one; it
+never lowers a role. To change the role of someone already in the organization,
+use `set_user_role` instead of an invitation.
+
 Invitations expire after 7 days and work once. Inviting the same address again
 replaces the open invitation. Admins list their organization's invitations
 from `invitations` and cancel one with `revoke_invitation`. An invitation also
 stops working if the admin who issued it is demoted or removed. Redeeming
 fails with a fixed message when the invitation is unknown, used, revoked, or
 expired, is for another address, the address isn't confirmed, or the user
-already belongs to an organization. Retrying after a success returns the same
+belongs to another organization. Retrying after a success returns the same
 organization.
 
 The confirmed-address check only means something while email confirmation is
 on in the hosted project (Authentication settings). Keep it on. Local dev has
 it off, so local signups are confirmed automatically.
 
-## First admin
+## Setting up a new project
 
-Nobody can promote themselves and only admins can promote others, so the first
-admin is created server-side. Have the person sign up, then run:
+1. Create the organization before anyone signs up:
 
-```bash
-npm run db:bootstrap-admin -- --email person@example.com --org "Org name"
-```
+   ```bash
+   npm run db:bootstrap-admin -- --org "Org name"
+   ```
 
-It creates the organization and makes them its admin, using the secret key in
-`.env.local`. Their email must be confirmed. Re-running it is safe. The seed
-does the same for its demo organizations.
+   Anyone who signed up before this joins it as a volunteer.
+2. Have the first admin sign up and confirm their email.
+3. Make them the admin. Nobody can promote themselves and only admins can
+   promote others, so this one is server-side:
+
+   ```bash
+   npm run db:bootstrap-admin -- --email person@example.com
+   ```
+
+The script uses the secret key in `.env.local` and is safe to re-run. The seed
+sets up its demo organization the same way.
 
 ## Types
 
@@ -163,14 +180,15 @@ leaves its history in place.
 ## Signup
 
 A trigger creates the `public.users` row on signup, with the name from signup
-metadata. It works without an email (e.g. phone signups). It never creates a
-membership, and never reads role or organization from signup data. Until a
-user joins an organization, they see only their own rows.
+metadata, and makes them a volunteer in the organization. It works without an
+email (e.g. phone signups). It never reads role or organization from signup
+data. A user who signed up before the organization existed sees only their own
+rows until it's created.
 
 ## Locked fields
 
 - `users.email` mirrors `auth.users`; change it with `supabase.auth.updateUser({ email })`.
-- Memberships change only through `set_user_role`, invitations, and server-side scripts.
+- Memberships are created at signup and change only through `set_user_role`, invitations, and server-side scripts.
 - `volunteers.organization_id` comes from the owner's membership, or is filled in when they join, and never changes after that.
 - `volunteers.status` changes only through applications.
 - Only the volunteer records their consent; the database sets the time.
