@@ -17,9 +17,13 @@ cleanup() { db -c "delete from public.organizations where id = '$ORG'; delete fr
 trap cleanup EXIT
 cleanup
 
+# Users first: in single-organization mode, signing up while two organizations
+# exist fails. If the database already has one, they join it and move below.
 db <<SQL
+insert into auth.users (id, email) values ('f0000000-0000-0000-0000-0000000000a1', 'race1@example.com'),
+  ('f0000000-0000-0000-0000-0000000000a2', 'race2@example.com'), ('f0000000-0000-0000-0000-0000000000a3', 'race3@example.com');
+delete from public.memberships where user_id::text like 'f0000000-%';
 insert into public.organizations (id, name) values ('$ORG', 'Concurrency test');
-insert into auth.users (id, email) values ('f0000000-0000-0000-0000-0000000000a1', 'race1@example.com'), ('f0000000-0000-0000-0000-0000000000a2', 'race2@example.com');
 insert into public.memberships (user_id, organization_id) values ('f0000000-0000-0000-0000-0000000000a1', '$ORG'), ('f0000000-0000-0000-0000-0000000000a2', '$ORG');
 insert into public.volunteers (id, user_id) values ('$V1', 'f0000000-0000-0000-0000-0000000000a1'), ('$V2', 'f0000000-0000-0000-0000-0000000000a2');
 insert into public.events (id, organization_id, status, title, starts_at, ends_at, capacity) values
@@ -57,7 +61,6 @@ race "$(demote f0000000-0000-0000-0000-0000000000a1 f0000000-0000-0000-0000-0000
 [ "$(db -c "select count(*) from public.memberships where organization_id = '$ORG' and role = 'admin'")" = 1 ] || fail "demote: wrong number of admins left"
 echo "ok - two admins demoting each other leave one admin"
 
-db -c "insert into auth.users (id, email) values ('f0000000-0000-0000-0000-0000000000a3', 'race3@example.com');" >/dev/null
 db -c "begin; insert into public.memberships (user_id, organization_id) values ('f0000000-0000-0000-0000-0000000000a3', '$ORG'); select pg_sleep(2); commit;" >/dev/null &
 joining=$!
 db -c "select pg_sleep(0.5); insert into public.volunteers (user_id) values ('f0000000-0000-0000-0000-0000000000a3');" >/dev/null || fail "join: the profile insert failed"

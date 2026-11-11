@@ -12,6 +12,7 @@ export type Membership = Pick<Tables<"memberships">, "organization_id" | "role">
 export type User = Tables<"users"> & { membership: Membership | null }
 
 export type Volunteer = Tables<"volunteers">
+/** An event row, plus registration_count (spots taken), a computed column. */
 export type Event = Tables<"events">
 
 // The columns the API's grants let a signed-in user write. Any non-null
