@@ -42,7 +42,7 @@ different one, e.g. `npm run dev -- -p 43127`.
 | `npm run test:watch` | Run Vitest in watch mode |
 | `npm run db:seed` | Fill the database in `.env.local` with demo data |
 | `npm run db:types` | Regenerate `src/lib/supabase/database.types.ts` from the local database |
-| `npm run db:bootstrap-admin` | Create an organization and its first admin |
+| `npm run db:bootstrap-admin` | Create the organization or make someone its admin |
 
 ## Contributing
 
@@ -157,17 +157,23 @@ npm run db:seed
 The seed targets the project in `.env.local` and needs `SUPABASE_SECRET_KEY`.
 It creates admin logins with a shared password, so never run it against a
 project with real users.
-It creates 10 rows in each main table, plus 22 users and memberships: an admin
-per organization, two managers, and 10 volunteers. One event is full, one has
-registration closed, and the invitations are open, expired, or revoked. The
-audit log fills in from the changes. All logins use `SEED_USER_PASSWORD`.
-Re-running replaces only the seed's own rows; the audit log keeps the old history.
+The project runs in single-organization mode, so the seed makes one
+organization with 12 users (an admin, a manager, and 10 volunteers) and 10
+volunteers, applications, events, registrations, and invitations. One event is
+full, one has registration closed, and the invitations are open, expired, or
+revoked. The audit log fills in from the changes. All logins use
+`SEED_USER_PASSWORD`. Re-running replaces only the seed's own rows, including
+those from older seeds; the audit log keeps the old history. It stops if the
+project has another organization.
 Needs Node 22.18 or newer.
 
-A new project with no seed data has no admins. Have the first admin sign up, then:
+A new project with no seed data has no organization or admins. Create the
+organization before anyone signs up, then promote the first admin after they
+sign up (see "Setting up a new project" in `docs/role-model.md`):
 
 ```bash
-npm run db:bootstrap-admin -- --email person@example.com --org "Org name"
+npm run db:bootstrap-admin -- --org "Org name"
+npm run db:bootstrap-admin -- --email person@example.com
 ```
 
 ## Authorization
