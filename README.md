@@ -82,7 +82,7 @@ src/
       navigation/
       metrics/
   lib/
-    adapters/           Domain types and repository contracts
+    adapters/           Repositories: contracts, Supabase and mock versions, and the switch
     supabase/           Generated database types
     utils.ts            Re-exports the `cn` class-name helper
 components.json         shadcn/ui CLI configuration
@@ -112,6 +112,8 @@ through the team's secure channel, not Slack plaintext.
 | `NEXT_PUBLIC_SUPABASE_URL` | Browser and server | Project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser and server | Holds the publishable key (`sb_publishable_...`) |
 | `SUPABASE_SECRET_KEY` | Server-only scripts | Secret key (`sb_secret_...`); bypasses RLS |
+| `SEED_USER_PASSWORD` | `npm run db:seed` | Password for every seed login; dev data only |
+| `NEXT_PUBLIC_DATA_SOURCE` | Server | `supabase` (default) or `mock` for in-memory demo data |
 
 ## Accounts & ownership
 
@@ -197,6 +199,25 @@ Roles are read per request from the user's row in `public.memberships` (see
 who hasn't joined an organization yet counts as a volunteer; a failed lookup or
 unknown role is denied. Never read roles from `app_metadata`, `user_metadata`,
 or JWT claims.
+
+## Data access
+
+Server code reads and writes volunteers and events through `volunteerRepo` and
+`eventRepo` from `@/lib/adapters`. With `NEXT_PUBLIC_DATA_SOURCE=mock` they
+serve in-memory demo data (two organizations, 12 volunteers, 6 events) after a
+simulated 200 ms delay, so screens work without a database. Otherwise they go
+through Supabase with the signed-in user's permissions. Changing the variable
+switches every caller; no component code changes.
+
+`@/lib/adapters` is server-only, since the Supabase repositories use the
+request's cookies. Client components call a Server Action or route handler
+that uses it.
+
+```ts
+import { eventRepo } from "@/lib/adapters"
+
+const events = await eventRepo.getAll()
+```
 
 ## Installed UI primitives
 
