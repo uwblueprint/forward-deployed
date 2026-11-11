@@ -7,7 +7,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(186);
+select plan(189);
 
 insert into auth.users (id, email) values
   ('20000000-0000-0000-0000-0000000000a0', 'admin.a@example.com'),
@@ -312,7 +312,7 @@ select throws_ok($$ update public.registrations set attendance_status = null whe
   'admin cannot clear recorded attendance');
 select throws_ok($$ update public.events set status = 'published' where id = '40000000-0000-0000-0000-0000000000a3' $$, '42501', 'A completed event cannot be reopened',
   'staff cannot reopen a completed event');
-select lives_ok($$ insert into public.custom_fields (organization_id, entity_type, field_name, field_type) values ('10000000-0000-0000-0000-00000000000a', 'registration', 'Shirt size', 'select') $$, 'admin can add a custom field');
+select lives_ok($$ insert into public.custom_fields (organization_id, entity_type, field_name, field_type, options) values ('10000000-0000-0000-0000-00000000000a', 'registration', 'Shirt size', 'select', '["S", "M", "L"]') $$, 'admin can add a custom field');
 select throws_ok($$ insert into public.custom_fields (organization_id, entity_type, field_name, field_type) values ('10000000-0000-0000-0000-00000000000b', 'registration', 'x', 'text') $$, '42501', null, 'admin cannot add an org B custom field');
 reset role;
 
@@ -334,6 +334,10 @@ select lives_ok($$ insert into public.volunteers (user_id) values ('20000000-000
 select lives_ok($$ insert into public.applications (volunteer_id) select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a5' $$, 'manager can apply as a volunteer');
 select is_empty($$ update public.applications set status = 'approved' where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a5') returning id $$, 'staff cannot approve their own application');
 select is_empty($$ update public.organizations set name = 'x' returning id $$, 'manager cannot edit org settings');
+select is_empty($$ update public.users set first_name = 'x' where id = '20000000-0000-0000-0000-0000000000a0' returning id $$, 'manager cannot rename an admin');
+select is_empty($$ update public.users set first_name = 'x' where id = '20000000-0000-0000-0000-0000000000a1' returning id $$, 'manager cannot rename a volunteer');
+select results_eq($$ update public.users set first_name = 'Morgan' where id = '20000000-0000-0000-0000-0000000000a5' returning first_name $$, $$ values ('Morgan') $$,
+  'manager can rename themselves');
 select throws_ok($$ insert into public.custom_fields (organization_id, entity_type, field_name, field_type) values ('10000000-0000-0000-0000-00000000000a', 'application', 'x', 'text') $$, '42501', null, 'manager cannot add custom fields');
 reset role;
 
