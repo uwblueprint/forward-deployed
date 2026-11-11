@@ -1,1 +1,25 @@
-export {}
+export {
+  availabilitySchema,
+  consentSchema,
+  emergencyContactSchema,
+  personalDetailsSchema,
+  skillsSchema,
+  SHIFTS,
+  stepOneSchema,
+  stepThreeSchema,
+  stepTwoSchema,
+  volunteerOnboardingSchema,
+  volunteerOnboardingStepSchemas,
+  WEEKDAYS,
+} from "./volunteerSchema"
+export type {
+  Availability,
+  Consent,
+  EmergencyContact,
+  PersonalDetails,
+  Skills,
+  VolunteerOnboardingPayload,
+  VolunteerOnboardingStepOne,
+  VolunteerOnboardingStepThree,
+  VolunteerOnboardingStepTwo,
+} from "./volunteerSchema"
