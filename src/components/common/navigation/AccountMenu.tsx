@@ -9,12 +9,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { createBrowserSupabaseClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 
 type AccountMenuProps = {
   name: string
   email: string
+  // Server Action from the auth feature (signOutAction), passed in by the layout.
+  onSignOut: () => Promise<{ ok: boolean }>
 }
 
 function initials(name: string) {
@@ -25,14 +26,14 @@ function initials(name: string) {
 
 // Sidebar footer from the Figma "AppSidebar" (avatar, name, email, chevrons).
 // Inside the collapsed desktop rail only the avatar shows.
-export function AccountMenu({ name, email }: AccountMenuProps) {
+export function AccountMenu({ name, email, onSignOut }: AccountMenuProps) {
   const router = useRouter()
 
   async function signOut() {
-    // signOut reports failure via `error` instead of throwing; stay put if the session survived.
-    const { error } = await createBrowserSupabaseClient().auth.signOut()
-    if (error) {
-      console.error("Sign out failed", error)
+    // Stay put if the session survived sign-out.
+    const result = await onSignOut()
+    if (!result.ok) {
+      console.error("Sign out failed", result)
       return
     }
     router.replace("/login")

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { AccountMenu, AdminShell } from "@/components/common/navigation";
-import { requireRole } from "@/features/auth";
+import { requireRole, signOutAction } from "@/features/auth";
 import { getCurrentUser } from "@/lib/supabase/require-user";
 
 async function RequireRole({ children }: { children: React.ReactNode }) {
@@ -22,7 +22,7 @@ async function AdminAccount() {
       ? fullName
       : email.split("@")[0] || "Account";
 
-  return <AccountMenu name={name} email={email} />;
+  return <AccountMenu name={name} email={email} onSignOut={signOutAction} />;
 }
 
 // Server component: route-level auth checks belong here, not inside AdminShell.

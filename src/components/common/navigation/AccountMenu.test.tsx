@@ -6,19 +6,15 @@ import { AccountMenu } from "./AccountMenu"
 
 const replace = vi.fn()
 const refresh = vi.fn()
-const signOut = vi.fn().mockResolvedValue({ error: null })
+const signOut = vi.fn().mockResolvedValue({ ok: true, data: null })
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, refresh }),
 }))
 
-vi.mock("@/lib/supabase/client", () => ({
-  createBrowserSupabaseClient: () => ({ auth: { signOut } }),
-}))
-
 describe("AccountMenu", () => {
   it("shows initials, name, and email", () => {
-    render(<AccountMenu name="Famay Wuong" email="fwuong@uwblueprint.org" />)
+    render(<AccountMenu name="Famay Wuong" email="fwuong@uwblueprint.org" onSignOut={signOut} />)
     expect(screen.getByText("FW")).toBeInTheDocument()
     expect(screen.getByText("Famay Wuong")).toBeInTheDocument()
     expect(screen.getByText("fwuong@uwblueprint.org")).toBeInTheDocument()
@@ -26,7 +22,7 @@ describe("AccountMenu", () => {
 
   it("signs out and sends the user to /login", async () => {
     const user = userEvent.setup()
-    render(<AccountMenu name="Famay Wuong" email="fwuong@uwblueprint.org" />)
+    render(<AccountMenu name="Famay Wuong" email="fwuong@uwblueprint.org" onSignOut={signOut} />)
 
     await user.click(screen.getByRole("button", { name: "Account menu for Famay Wuong" }))
     await user.click(await screen.findByRole("menuitem", { name: "Log out" }))
@@ -39,9 +35,9 @@ describe("AccountMenu", () => {
   it("stays on the page when sign-out fails", async () => {
     const user = userEvent.setup()
     replace.mockClear()
-    signOut.mockResolvedValueOnce({ error: new Error("network") })
+    signOut.mockResolvedValueOnce({ ok: false })
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
-    render(<AccountMenu name="Famay Wuong" email="fwuong@uwblueprint.org" />)
+    render(<AccountMenu name="Famay Wuong" email="fwuong@uwblueprint.org" onSignOut={signOut} />)
 
     await user.click(screen.getByRole("button", { name: "Account menu for Famay Wuong" }))
     await user.click(await screen.findByRole("menuitem", { name: "Log out" }))
