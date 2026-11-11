@@ -3,20 +3,16 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/common/forms";
+import { fieldError } from "../api/fieldError";
 import { signInAction, type SignInActionState } from "../api/actions";
 
 const initialState: SignInActionState = { status: "idle" };
 
-function fieldError(
-  fieldErrors: Record<string, string[]> | undefined,
-  field: string,
-): string | undefined {
-  return fieldErrors?.[field]?.[0];
-}
-
 export function SignInForm() {
+  // Email is controlled so it survives React 19's
+  // post-action form reset after a failed submit. Password is deliberately
+  // uncontrolled so it's cleared, not repopulated. Don't make it controlled.
   const [email, setEmail] = useState("");
   const [state, formAction, pending] = useActionState(
     signInAction,
@@ -30,27 +26,25 @@ export function SignInForm() {
     <div>
       <h1>Log in</h1>
       <form action={formAction}>
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
+        <FormField
+          label="Email"
           name="email"
           type="email"
+          autoComplete="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          aria-invalid={emailError ? true : undefined}
-          aria-describedby={emailError ? "email-error" : undefined}
+          error={emailError}
         />
-        {emailError && <p id="email-error">{emailError}</p>}
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
+        <FormField
+          label="Password"
           name="password"
           type="password"
-          aria-invalid={passwordError ? true : undefined}
-          aria-describedby={passwordError ? "password-error" : undefined}
+          autoComplete="current-password"
+          error={passwordError}
         />
-        {passwordError && <p id="password-error">{passwordError}</p>}
-        {state.status === "error" && state.message && <p>{state.message}</p>}
+        {state.status === "error" && state.message && (
+          <p role="alert">{state.message}</p>
+        )}
         <Button type="submit" disabled={pending}>
           {pending ? "Signing in..." : "Sign in"}
         </Button>

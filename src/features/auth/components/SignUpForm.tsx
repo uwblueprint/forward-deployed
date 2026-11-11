@@ -3,20 +3,16 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/common/forms";
+import { fieldError } from "../api/fieldError";
 import { signUpAction, type SignUpActionState } from "../api/actions";
 
 const initialState: SignUpActionState = { status: "idle" };
 
-function fieldError(
-  fieldErrors: Record<string, string[]> | undefined,
-  field: string,
-): string | undefined {
-  return fieldErrors?.[field]?.[0];
-}
-
 export function SignUpForm() {
+  // Email and name fields are controlled so they survive React 19's
+  // post-action form reset after a failed submit. Password is deliberately
+  // uncontrolled so it's cleared, not repopulated. Don't make it controlled.
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -43,49 +39,43 @@ export function SignUpForm() {
     <div>
       <h1>Create account</h1>
       <form action={formAction}>
-        <Label htmlFor="firstName">First name</Label>
-        <Input
-          id="firstName"
+        <FormField
+          label="First name"
           name="firstName"
           type="text"
+          autoComplete="given-name"
           value={firstName}
           onChange={(event) => setFirstName(event.target.value)}
-          aria-invalid={firstNameError ? true : undefined}
-          aria-describedby={firstNameError ? "firstName-error" : undefined}
+          error={firstNameError}
         />
-        {firstNameError && <p id="firstName-error">{firstNameError}</p>}
-        <Label htmlFor="lastName">Last name</Label>
-        <Input
-          id="lastName"
+        <FormField
+          label="Last name"
           name="lastName"
           type="text"
+          autoComplete="family-name"
           value={lastName}
           onChange={(event) => setLastName(event.target.value)}
-          aria-invalid={lastNameError ? true : undefined}
-          aria-describedby={lastNameError ? "lastName-error" : undefined}
+          error={lastNameError}
         />
-        {lastNameError && <p id="lastName-error">{lastNameError}</p>}
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
+        <FormField
+          label="Email"
           name="email"
           type="email"
+          autoComplete="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          aria-invalid={emailError ? true : undefined}
-          aria-describedby={emailError ? "email-error" : undefined}
+          error={emailError}
         />
-        {emailError && <p id="email-error">{emailError}</p>}
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
+        <FormField
+          label="Password"
           name="password"
           type="password"
-          aria-invalid={passwordError ? true : undefined}
-          aria-describedby={passwordError ? "password-error" : undefined}
+          autoComplete="new-password"
+          error={passwordError}
         />
-        {passwordError && <p id="password-error">{passwordError}</p>}
-        {state.status === "error" && state.message && <p>{state.message}</p>}
+        {state.status === "error" && state.message && (
+          <p role="alert">{state.message}</p>
+        )}
         <Button type="submit" disabled={pending}>
           {pending ? "Creating account..." : "Create account"}
         </Button>
