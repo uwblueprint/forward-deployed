@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  columnVisibilityFeature,
   createSortedRowModel,
   rowSortingFeature,
   sortFn_alphanumeric,
@@ -8,6 +9,7 @@ import {
   tableFeatures,
   useTable,
   type ColumnDef,
+  type ColumnVisibilityState,
   type RowData,
   type SortingState,
 } from "@tanstack/react-table"
@@ -25,6 +27,8 @@ import {
 // Module scope so the feature set (and row models) stay stable across renders.
 // Filtering/pagination features get added here later.
 export const dataTableFeatures = tableFeatures({
+  // Provides `columnVisibility` state, `row.getVisibleCells()` and `table.getVisibleLeafColumns()`.
+  columnVisibilityFeature,
   rowSortingFeature,
   sortedRowModel: createSortedRowModel(),
   sortFns: { alphanumeric: sortFn_alphanumeric, text: sortFn_text },
@@ -35,23 +39,27 @@ export const dataTableFeatures = tableFeatures({
 export type DataTableColumnDef<TData extends RowData> = ColumnDef<typeof dataTableFeatures, TData, any>
 
 const NO_SORTING: SortingState = []
+const ALL_VISIBLE: ColumnVisibilityState = {}
 
-type FilterableDataTableProps<TData extends RowData> = {
+type DataTableProps<TData extends RowData> = {
   data: TData[]
   columns: DataTableColumnDef<TData>[]
   initialSorting?: SortingState
+  // Column id -> false to hide it; omitted columns stay visible.
+  initialColumnVisibility?: ColumnVisibilityState
 }
 
-export function FilterableDataTable<TData extends RowData>({
+export function DataTable<TData extends RowData>({
   data,
   columns,
   initialSorting = NO_SORTING,
-}: FilterableDataTableProps<TData>) {
+  initialColumnVisibility = ALL_VISIBLE,
+}: DataTableProps<TData>) {
   const table = useTable({
     features: dataTableFeatures,
     data,
     columns,
-    initialState: { sorting: initialSorting },
+    initialState: { sorting: initialSorting, columnVisibility: initialColumnVisibility },
     // Click cycles asc -> desc only; no "unsorted" third state.
     enableSortingRemoval: false,
   })
@@ -103,20 +111,20 @@ export function FilterableDataTable<TData extends RowData>({
       <TableBody>
         {rows.length === 0 ? (
           <TableRow>
-            {/* Leaf columns, not `columns.length`, so grouped headers still span the full width.
+            {/* Visible leaf columns, not `columns.length`, so grouped headers still span the full width.
                 Fixed text for now; an `emptyMessage` prop could let each page say e.g.
                 "No volunteers yet." once a page needs it. */}
             <TableCell
-              colSpan={table.getAllLeafColumns().length}
+              colSpan={table.getVisibleLeafColumns().length}
               className="h-24 text-center text-muted-foreground"
             >
-              No results.
+              No records found
             </TableCell>
           </TableRow>
         ) : (
           rows.map((row) => (
             <TableRow key={row.id}>
-              {row.getAllCells().map((cell) => (
+              {row.getVisibleCells().map((cell) => (
                 <TableCell key={cell.id}>
                   <table.FlexRender cell={cell} />
                 </TableCell>

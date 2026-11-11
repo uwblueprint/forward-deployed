@@ -1,2 +1,2 @@
-export { FilterableDataTable, dataTableFeatures } from "./FilterableDataTable"
-export type { DataTableColumnDef } from "./FilterableDataTable"
+export { DataTable, dataTableFeatures } from "./DataTable"
+export type { DataTableColumnDef } from "./DataTable"
