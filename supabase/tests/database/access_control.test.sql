@@ -9,10 +9,6 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(186);
 
-insert into public.organizations (id, name) values
-  ('10000000-0000-0000-0000-00000000000a', 'Org A'),
-  ('10000000-0000-0000-0000-00000000000b', 'Org B');
-
 insert into auth.users (id, email) values
   ('20000000-0000-0000-0000-0000000000a0', 'admin.a@example.com'),
   ('20000000-0000-0000-0000-0000000000a1', 'approved.a@example.com'),
@@ -22,6 +18,15 @@ insert into auth.users (id, email) values
   ('20000000-0000-0000-0000-0000000000a5', 'manager.a@example.com'),
   ('20000000-0000-0000-0000-0000000000b0', 'admin.b@example.com'),
   ('20000000-0000-0000-0000-0000000000b1', 'approved.b@example.com');
+
+-- Signups before any organization exists, so single-organization mode leaves them unattached.
+insert into auth.users (id, email, raw_user_meta_data) values ('20000000-0000-0000-0000-0000000000f0', 'signup@example.com',
+  '{"full_name": "Sam Signup", "role": "admin", "organization_id": "10000000-0000-0000-0000-00000000000a"}');
+insert into auth.users (id, phone, raw_user_meta_data) values ('20000000-0000-0000-0000-0000000000f1', '15195550100', '{"given_name": "Pat", "family_name": "Phone"}');
+
+insert into public.organizations (id, name) values
+  ('10000000-0000-0000-0000-00000000000a', 'Org A'),
+  ('10000000-0000-0000-0000-00000000000b', 'Org B');
 
 insert into public.memberships (user_id, organization_id, role) values
   ('20000000-0000-0000-0000-0000000000a0', '10000000-0000-0000-0000-00000000000a', 'admin'),
@@ -115,14 +120,11 @@ select results_eq($$ select status::text from public.volunteers where id::text l
   $$ values ('approved'), ('pending'), ('rejected') $$,
   'volunteer status mirrors their latest application');
 
-insert into auth.users (id, email, raw_user_meta_data) values ('20000000-0000-0000-0000-0000000000f0', 'signup@example.com',
-  '{"full_name": "Sam Signup", "role": "admin", "organization_id": "10000000-0000-0000-0000-00000000000a"}');
 select results_eq($$ select first_name, last_name, email from public.users where id = '20000000-0000-0000-0000-0000000000f0' $$,
   $$ values ('Sam', 'Signup', 'signup@example.com') $$, 'signup creates a user row and splits the name');
 select is_empty($$ select 1 from public.memberships where user_id = '20000000-0000-0000-0000-0000000000f0' $$,
-  'signup ignores role and org metadata and creates no membership');
+  'signup ignores role and org metadata, and joins nothing while no organization exists');
 
-insert into auth.users (id, phone, raw_user_meta_data) values ('20000000-0000-0000-0000-0000000000f1', '15195550100', '{"given_name": "Pat", "family_name": "Phone"}');
 select results_eq($$ select first_name, last_name, email from public.users where id = '20000000-0000-0000-0000-0000000000f1' $$,
   $$ values ('Pat', 'Phone', null::text) $$, 'signup without an email still creates the user row');
 
