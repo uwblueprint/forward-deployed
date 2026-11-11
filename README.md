@@ -114,7 +114,7 @@ through the team's secure channel, not Slack plaintext.
 | --- | --- | --- |
 | Supabase (org "UW Blueprint", Blueprint-controlled account) | Allan Yang, Rishab (TL) | Samay, Ethan, Angus (Developer) |
 | GitHub (`uwblueprint/forward-deployed`) | TBD | TBD |
-| Vercel | TBD | TBD |
+| Vercel | Samay | None (Hobby plan, single-user) |
 
 Secrets (Supabase keys, database password) live in: TBD.
 
@@ -155,10 +155,34 @@ Needs Node 22.18 or newer.
 A new project with no seed data has no admins. See "First admin" in
 `docs/role-model.md` for the two commands that create one.
 
+## Authorization
+
+Pages and layouts call `requireRole` from `@/features/auth`; route handlers
+call `requireRoleForRoute` instead, since `redirect`/`notFound` don't fit an
+API response. It returns a typed `{ ok: true, user }` /
+`{ ok: false, response }` result instead of throwing.
+
+Every server component that reads protected data must call `requireRole`
+itself before reading that data, even inside a protected layout. Layouts
+render in parallel with their pages, so a layout-level check can't gate what
+a page returns.
+
+`src/proxy.ts` is a convenience redirect for signed-out visitors, not the
+security gate, and is not a substitute for `requireRole`/`requireRoleForRoute`
+at each server boundary.
+
+Roles are read per request from `public.users.role` (see
+`docs/role-model.md`), deduplicated per request with React's `cache()`. Any
+missing or unknown role is denied. Never read roles from `app_metadata`,
+`user_metadata`, or JWT claims.
+
 ## Installed UI primitives
 
 `button`, `input`, `label`, `card`, `dialog`, `dropdown-menu`, `select`,
 `table`, `badge`, `tabs`.
+
+See them all rendered together at `/showcase` (`src/app/showcase/page.tsx`)
+when running the dev server.
 
 Add more with:
 
@@ -229,3 +253,19 @@ here — fix them. For example, `next` and `eslint-config-next` were bumped off 
 vulnerable 16.4.0 baseline (to 16.4.3, then 16.4.5) for GHSA-2464-fhr4-w9xw,
 GHSA-p3m5-59mp-jv5r, and GHSA-673q-mjm6-r5xr, all fixed in 16.4.1. Keep the
 two versions in lockstep.
+
+## Deployment
+
+Hosted on the Vercel project `forward-deployed`, owned by Samay Kapadia.
+
+Pushes to `main` deploy to production. Every pull request gets a preview
+deployment, with the URL posted as a comment on the PR.
+
+Deployments run through `.github/workflows/vercel.yml` using the Vercel CLI,
+authenticated with the GitHub Actions secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`,
+and `VERCEL_PROJECT_ID`.
+
+To update environment variables, change them in the Vercel project settings,
+then redeploy — either by re-running the latest `main` workflow run in the
+Actions tab, or by pushing a new commit. Changes only apply to new
+deployments.
