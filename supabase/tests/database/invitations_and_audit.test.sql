@@ -8,10 +8,6 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(67);
 
-insert into public.organizations (id, name) values
-  ('10000000-0000-0000-0000-00000000000a', 'Org A'),
-  ('10000000-0000-0000-0000-00000000000b', 'Org B');
-
 insert into auth.users (id, email, email_confirmed_at) values
   ('20000000-0000-0000-0000-0000000000a0', 'admin.a@example.com', now()),
   ('20000000-0000-0000-0000-0000000000a1', 'volunteer.a@example.com', now()),
@@ -24,6 +20,10 @@ insert into auth.users (id, email, email_confirmed_at) values
   ('20000000-0000-0000-0000-0000000000c3', 'unconfirmed@example.com', null),
   ('20000000-0000-0000-0000-0000000000c4', 'late@example.com', now()),
   ('20000000-0000-0000-0000-0000000000c5', 'cross@example.com', now());
+
+insert into public.organizations (id, name) values
+  ('10000000-0000-0000-0000-00000000000a', 'Org A'),
+  ('10000000-0000-0000-0000-00000000000b', 'Org B');
 
 insert into public.memberships (user_id, organization_id, role) values
   ('20000000-0000-0000-0000-0000000000a0', '10000000-0000-0000-0000-00000000000a', 'admin'),
