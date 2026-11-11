@@ -203,7 +203,7 @@ function AdminNav({
               "focus-visible:ring-3 focus-visible:ring-sidebar-ring/50 [&_svg]:size-4 [&_svg]:shrink-0",
               // Selected = brand tint (Figma bg/selected + text/brand); hover = neutral (bg/hover).
               active
-                ? "bg-sidebar-primary/10 text-sidebar-primary"
+                ? "bg-selected text-brand"
                 : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               collapsed && "justify-center px-0"
             )}
