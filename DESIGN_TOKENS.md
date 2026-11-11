@@ -11,6 +11,13 @@
 >
 > This document does **not** change any code. Writing the agreed values into
 > `src/app/globals.css` and the Tailwind theme is separate work (FOR-45).
+>
+> **Update (FOR-103):** `globals.css` now holds the light values from the Figma
+> "Design System [ShadCN]" semantic tokens, plus the extra `brand`, `selected`,
+> `info`, `success`, `warning` and `destructive-muted` colours, the Figma radius
+> steps, and the type scale (`text-header-*`, `text-body-*`, `text-caption-*`).
+> Each value's comment names its Figma token. Dark values are derived, pending
+> design review. The tables below are the pre-FOR-103 proposal.
 
 Status legend:
 
