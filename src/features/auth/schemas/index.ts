@@ -1,2 +1,14 @@
-export { loginSchema, registerSchema } from "./authSchema";
-export type { LoginInput, RegisterInput } from "./authSchema";
+export {
+  forgotPasswordSchema,
+  loginSchema,
+  registerSchema,
+  resetPasswordSchema,
+  verifyResetCodeSchema,
+} from "./authSchema";
+export type {
+  ForgotPasswordInput,
+  LoginInput,
+  RegisterInput,
+  ResetPasswordInput,
+  VerifyResetCodeInput,
+} from "./authSchema";

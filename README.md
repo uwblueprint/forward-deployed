@@ -176,6 +176,21 @@ Roles are read per request from `public.users.role` (see
 missing or unknown role is denied. Never read roles from `app_metadata`,
 `user_metadata`, or JWT claims.
 
+## Auth emails
+
+In the Supabase dashboard, under Authentication:
+
+| Setting | Value |
+| --- | --- |
+| Site URL | `https://forward-deployed.vercel.app` |
+| Redirect URLs | `http://localhost:3000/**`, `https://forward-deployed.vercel.app/**`, `https://forward-deployed-*-forward-deployed.vercel.app/**` |
+| Confirm signup template link | `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard` |
+| Reset password template | Show the code with `{{ .Token }}` instead of a link |
+
+Until the confirm signup template is changed from its default, those emails
+still work, but only through `/auth/callback`, and only in the browser the
+user signed up in.
+
 ## Installed UI primitives
 
 `button`, `input`, `label`, `card`, `dialog`, `dropdown-menu`, `select`,
