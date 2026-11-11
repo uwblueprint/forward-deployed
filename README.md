@@ -200,6 +200,9 @@ Radix. Composition uses the `render` prop rather than `asChild`:
 <DialogTrigger render={<Button>Open</Button>} />
 ```
 
+Proposed design tokens (colors, radius, fonts) and Base UI conventions are in
+[`DESIGN_TOKENS.md`](DESIGN_TOKENS.md) (draft, pending design sign-off).
+
 The `shadcn` package is a dev dependency: the CLI only runs at authoring time,
 and `src/app/globals.css` imports `shadcn/tailwind.css` at build time. Do not
 remove it outright — the build fails, and dropping the import silently breaks
