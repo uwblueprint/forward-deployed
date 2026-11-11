@@ -221,11 +221,20 @@ const events = await eventRepo.getAll()
 
 ## Installed UI primitives
 
-`button`, `input`, `label`, `card`, `dialog`, `dropdown-menu`, `select`,
-`table`, `badge`, `tabs`.
+`accordion`, `alert`, `aspect-ratio`, `badge`, `button`, `card`, `checkbox`,
+`collapsible`, `command`, `dialog`, `dropdown-menu`, `hover-card`, `input`,
+`input-group`, `label`, `navigation-menu`, `popover`, `scroll-area`, `select`,
+`table`, `tabs`, `textarea`, `tooltip`. All are exported from
+`src/components/ui/index.ts`.
 
-See them all rendered together at `/showcase` (`src/app/showcase/page.tsx`)
-when running the dev server.
+`tooltip` needs a `TooltipProvider` ancestor before use.
+
+Not installed on purpose: `sidebar`. The admin shell is hand-rolled in
+`src/components/common/navigation/AdminShell.tsx` and already matches the Figma
+Sidebar page (see FOR-102); don't add shadcn's `sidebar` alongside it.
+
+The original ten are rendered together at `/showcase`
+(`src/app/showcase/page.tsx`) when running the dev server.
 
 Add more with:
 
