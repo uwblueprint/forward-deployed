@@ -137,6 +137,10 @@ export async function requestPasswordReset(
   }
 
   const supabase = await createServerSupabaseClient();
+  // No redirectTo: this is the code-based flow (the email contains {{ .Token }}
+  // and the user types it in), so there's no link to redirect from. If a
+  // link-based reset is added later, pass redirectTo pointing at /auth/confirm
+  // and allow the "recovery" type there.
   const { error } = await supabase.auth.resetPasswordForEmail(
     parsed.data.email,
   );

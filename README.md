@@ -191,6 +191,13 @@ Until the confirm signup template is changed from its default, those emails
 still work, but only through `/auth/callback`, and only in the browser the
 user signed up in.
 
+Local Supabase uses the templates in `supabase/templates/`, configured in
+`supabase/config.toml`. Template changes need `npx supabase stop` then
+`npx supabase start` to take effect. Local emails don't actually get sent —
+they appear at <http://127.0.0.1:54324>. Local signup confirmation is off
+(`enable_confirmations = false`), so only the reset flow can be tested
+locally; signup confirmation is tested against a hosted project.
+
 ## Installed UI primitives
 
 `button`, `input`, `label`, `card`, `dialog`, `dropdown-menu`, `select`,
