@@ -4,10 +4,16 @@
  * DO NOT export internal sub-components or route-specific logic.
  */
 
-export { signInWithEmail, signOut, signOutAction, signUpWithEmail } from "./api";
+export {
+  requestPasswordReset,
+  signInWithEmail,
+  signOut,
+  signOutAction,
+  signUpWithEmail,
+  updatePassword,
+  verifyResetCode,
+} from "./api";
 export type { AuthError, AuthResult, AuthSessionData } from "./api";
-export { loginSchema, registerSchema } from "./schemas";
-export type { LoginInput, RegisterInput } from "./schemas";
 export type { Role, RoleResolver } from "./api";
 export {
   getUserRole,
@@ -15,3 +21,18 @@ export {
   requireRole,
   requireRoleForRoute,
 } from "./api";
+export {
+  forgotPasswordSchema,
+  loginSchema,
+  registerSchema,
+  resetPasswordSchema,
+  verifyResetCodeSchema,
+} from "./schemas";
+export type {
+  ForgotPasswordInput,
+  LoginInput,
+  RegisterInput,
+  ResetPasswordInput,
+  VerifyResetCodeInput,
+} from "./schemas";
+export { ForgotPasswordFlow } from "./components";
