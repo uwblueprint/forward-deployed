@@ -1,27 +1,24 @@
 "use server";
 
+import type { User } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   requestPasswordReset,
+  signInWithEmail,
   signOut,
+  signUpWithEmail,
   updatePassword,
   verifyResetCode,
 } from "./auth";
 import type { AuthResult } from "./auth";
+import { getUserRole } from "./requireRole";
 
 /** Server Action wrapper so Client Components (e.g. the account menu) can sign out. */
 export async function signOutAction(): Promise<AuthResult<null>> {
   return signOut();
 }
-import {
-  requestPasswordReset,
-  signInWithEmail,
-  signUpWithEmail,
-  updatePassword,
-  verifyResetCode,
-} from "./auth";
 
 export type ResetFlowActionState = {
   status: "idle" | "error" | "success";
@@ -75,23 +72,14 @@ function resolveOrigin(
 }
 
 /**
- * TODO(FOR-38, PR #22): replace this inline query with `getUserRole` once
- * the role-model work merges. Fail-closed: a missing row or any role other
- * than admin/manager sends the user to /dashboard, never /admin/dashboard.
+ * Staff (admin/manager) go to the admin dashboard; everyone else goes to the
+ * volunteer dashboard. Fail-closed: `getUserRole` returns null on errors or
+ * unknown roles, which sends the user to /dashboard, never /admin/dashboard.
  */
-async function resolveSignInRedirect(userId: string): Promise<string> {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", userId)
-    .single();
+async function resolveSignInRedirect(user: User): Promise<string> {
+  const role = await getUserRole(user);
 
-  if (error || !data) {
-    return "/dashboard";
-  }
-
-  return data.role === "admin" || data.role === "manager"
+  return role === "admin" || role === "manager"
     ? "/admin/dashboard"
     : "/dashboard";
 }
@@ -179,9 +167,9 @@ export async function signInAction(
       : { status: "error", message: result.error.message };
   }
 
-  const userId = result.data.user?.id;
-  const redirectPath = userId
-    ? await resolveSignInRedirect(userId)
+  const user = result.data.user;
+  const redirectPath = user
+    ? await resolveSignInRedirect(user)
     : "/dashboard";
 
   redirect(redirectPath);

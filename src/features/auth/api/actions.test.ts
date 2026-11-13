@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockSingle, signInWithEmail, signUpWithEmail, RedirectError } =
+const { getUserRole, signInWithEmail, signUpWithEmail, RedirectError } =
   vi.hoisted(() => {
     class RedirectError extends Error {
       constructor(public readonly url: string) {
@@ -9,7 +9,7 @@ const { mockSingle, signInWithEmail, signUpWithEmail, RedirectError } =
     }
 
     return {
-      mockSingle: vi.fn(),
+      getUserRole: vi.fn(),
       signInWithEmail: vi.fn(),
       signUpWithEmail: vi.fn(),
       RedirectError,
@@ -17,20 +17,16 @@ const { mockSingle, signInWithEmail, signUpWithEmail, RedirectError } =
   });
 
 vi.mock("@/lib/supabase/server", () => ({
-  createServerSupabaseClient: vi.fn(async () => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: mockSingle,
-        })),
-      })),
-    })),
-  })),
+  createServerSupabaseClient: vi.fn(async () => ({})),
 }));
 
 vi.mock("./auth", () => ({
   signInWithEmail,
   signUpWithEmail,
+}));
+
+vi.mock("./requireRole", () => ({
+  getUserRole,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -104,11 +100,12 @@ describe("signInAction", () => {
   });
 
   it("redirects admins to /admin/dashboard", async () => {
+    const user = { id: "user-1" };
     signInWithEmail.mockResolvedValue({
       ok: true,
-      data: { user: { id: "user-1" }, session: {} },
+      data: { user, session: {} },
     });
-    mockSingle.mockResolvedValue({ data: { role: "admin" }, error: null });
+    getUserRole.mockResolvedValue("admin");
 
     await expect(
       signInAction(
@@ -118,6 +115,7 @@ describe("signInAction", () => {
     ).rejects.toThrow(RedirectError);
 
     expect(redirect).toHaveBeenCalledWith("/admin/dashboard");
+    expect(getUserRole).toHaveBeenCalledWith(user);
   });
 
   it("redirects managers to /admin/dashboard", async () => {
@@ -125,7 +123,7 @@ describe("signInAction", () => {
       ok: true,
       data: { user: { id: "user-2" }, session: {} },
     });
-    mockSingle.mockResolvedValue({ data: { role: "manager" }, error: null });
+    getUserRole.mockResolvedValue("manager");
 
     await expect(
       signInAction(
@@ -145,7 +143,7 @@ describe("signInAction", () => {
       ok: true,
       data: { user: { id: "user-3" }, session: {} },
     });
-    mockSingle.mockResolvedValue({ data: { role: "volunteer" }, error: null });
+    getUserRole.mockResolvedValue("volunteer");
 
     await expect(
       signInAction(
@@ -160,12 +158,12 @@ describe("signInAction", () => {
     expect(redirect).toHaveBeenCalledWith("/dashboard");
   });
 
-  it("fails closed to /dashboard when the role row is missing", async () => {
+  it("fails closed to /dashboard when getUserRole returns null", async () => {
     signInWithEmail.mockResolvedValue({
       ok: true,
       data: { user: { id: "user-4" }, session: {} },
     });
-    mockSingle.mockResolvedValue({ data: null, error: null });
+    getUserRole.mockResolvedValue(null);
 
     await expect(
       signInAction(
@@ -177,14 +175,10 @@ describe("signInAction", () => {
     expect(redirect).toHaveBeenCalledWith("/dashboard");
   });
 
-  it("fails closed to /dashboard for an unknown role value", async () => {
+  it("redirects to /dashboard without calling getUserRole when sign-in returns no user", async () => {
     signInWithEmail.mockResolvedValue({
       ok: true,
-      data: { user: { id: "user-5" }, session: {} },
-    });
-    mockSingle.mockResolvedValue({
-      data: { role: "superadmin" },
-      error: null,
+      data: { user: null, session: {} },
     });
 
     await expect(
@@ -195,6 +189,7 @@ describe("signInAction", () => {
     ).rejects.toThrow(RedirectError);
 
     expect(redirect).toHaveBeenCalledWith("/dashboard");
+    expect(getUserRole).not.toHaveBeenCalled();
   });
 });
 
