@@ -15,7 +15,7 @@ vi.mock("../api/actions", () => ({
     updatePasswordAction(...args),
 }));
 
-import { ForgotPasswordFlow } from "./forgot-password-flow";
+import { ForgotPasswordFlow } from "./ForgotPasswordFlow";
 
 beforeEach(() => {
   requestPasswordResetAction.mockReset();

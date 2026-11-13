@@ -2,8 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/common/forms";
+import { fieldError } from "../api/fieldError";
 import {
   requestPasswordResetAction,
   updatePasswordAction,
@@ -12,13 +12,6 @@ import {
 } from "../api/actions";
 
 const initialState: ResetFlowActionState = { status: "idle" };
-
-function fieldError(
-  fieldErrors: Record<string, string[]> | undefined,
-  field: string,
-): string | undefined {
-  return fieldErrors?.[field]?.[0];
-}
 
 function ForgotPasswordFlowInner({
   onStartOver,
@@ -54,19 +47,17 @@ function ForgotPasswordFlowInner({
       <div>
         <h1>Forgot password</h1>
         <form action={requestAction}>
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
+          <FormField
+            label="Email"
             name="email"
             type="email"
+            autoComplete="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            aria-invalid={emailError ? true : undefined}
-            aria-describedby={emailError ? "email-error" : undefined}
+            error={emailError}
           />
-          {emailError && <p id="email-error">{emailError}</p>}
           {requestState.status === "error" && requestState.message && (
-            <p>{requestState.message}</p>
+            <p role="alert">{requestState.message}</p>
           )}
           <Button type="submit" disabled={requestPending}>
             Send code
@@ -85,18 +76,16 @@ function ForgotPasswordFlowInner({
         {requestState.status === "success" && <p>{requestState.message}</p>}
         <form action={verifyAction}>
           <input type="hidden" name="email" value={email} />
-          <Label htmlFor="code">Code</Label>
-          <Input
-            id="code"
+          <FormField
+            label="Code"
             name="code"
             type="text"
             inputMode="numeric"
-            aria-invalid={codeError ? true : undefined}
-            aria-describedby={codeError ? "code-error" : undefined}
+            autoComplete="one-time-code"
+            error={codeError}
           />
-          {codeError && <p id="code-error">{codeError}</p>}
           {verifyState.status === "error" && verifyState.message && (
-            <p>{verifyState.message}</p>
+            <p role="alert">{verifyState.message}</p>
           )}
           <Button type="submit" disabled={verifyPending}>
             Verify code
@@ -119,30 +108,22 @@ function ForgotPasswordFlowInner({
     <div>
       <h1>Choose a new password</h1>
       <form action={updateAction}>
-        <Label htmlFor="password">New password</Label>
-        <Input
-          id="password"
+        <FormField
+          label="New password"
           name="password"
           type="password"
-          aria-invalid={passwordError ? true : undefined}
-          aria-describedby={passwordError ? "password-error" : undefined}
+          autoComplete="new-password"
+          error={passwordError}
         />
-        {passwordError && <p id="password-error">{passwordError}</p>}
-        <Label htmlFor="confirmPassword">Confirm password</Label>
-        <Input
-          id="confirmPassword"
+        <FormField
+          label="Confirm password"
           name="confirmPassword"
           type="password"
-          aria-invalid={confirmPasswordError ? true : undefined}
-          aria-describedby={
-            confirmPasswordError ? "confirmPassword-error" : undefined
-          }
+          autoComplete="new-password"
+          error={confirmPasswordError}
         />
-        {confirmPasswordError && (
-          <p id="confirmPassword-error">{confirmPasswordError}</p>
-        )}
         {updateState.status === "error" && updateState.message && (
-          <p>{updateState.message}</p>
+          <p role="alert">{updateState.message}</p>
         )}
         <Button type="submit" disabled={updatePending}>
           Reset password

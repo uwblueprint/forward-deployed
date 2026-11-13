@@ -4,3 +4,4 @@ export type {
   UseMultiStepWizardResult,
 } from "./useMultiStepWizard"
 export { clearDraft, loadDraft, saveDraft } from "./wizardDraft"
+export { FormField } from "./FormField";
