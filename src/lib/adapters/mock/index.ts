@@ -5,12 +5,13 @@ import type {
   EventUpdate,
   Volunteer,
   VolunteerCreate,
+  VolunteerWithUser,
   VolunteerRepository,
   VolunteerUpdate,
 } from "../types"
-import { MOCK_EVENTS, MOCK_ORGANIZATIONS, MOCK_VOLUNTEERS } from "./data"
+import { MOCK_EVENTS, MOCK_ORGANIZATIONS, MOCK_USERS, MOCK_VOLUNTEERS } from "./data"
 
-export { MOCK_EVENTS, MOCK_ORGANIZATIONS, MOCK_VOLUNTEERS }
+export { MOCK_EVENTS, MOCK_ORGANIZATIONS, MOCK_USERS, MOCK_VOLUNTEERS }
 
 /** How long every mock call takes, to imitate a network round trip. */
 export const MOCK_LATENCY_MS = 200
@@ -29,6 +30,17 @@ export class MockVolunteerRepository implements VolunteerRepository {
   async getAll() {
     await delay()
     return copy(this.volunteers)
+  }
+
+  async getAllWithUser() {
+    await delay()
+    return this.volunteers.map((volunteer): VolunteerWithUser => {
+      const user = MOCK_USERS.find((u) => u.id === volunteer.user_id)
+      return {
+        ...copy(volunteer),
+        user: user ? { first_name: user.first_name, last_name: user.last_name, email: user.email } : null,
+      }
+    })
   }
 
   async getById(id: string) {
