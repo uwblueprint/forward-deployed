@@ -14,6 +14,13 @@ function isEmpty(value: unknown): boolean {
   return value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0)
 }
 
+/** A real YYYY-MM-DD date, like a date input sends. Matches the database's check. */
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const date = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
+}
+
 /** True when `value` is a valid answer for `field`, ignoring whether it was required. */
 function matchesFieldType(field: CustomField, value: unknown): boolean {
   switch (field.field_type) {
@@ -23,7 +30,7 @@ function matchesFieldType(field: CustomField, value: unknown): boolean {
     case "number":
       return typeof value === "number" && Number.isFinite(value)
     case "date":
-      return typeof value === "string" && !Number.isNaN(Date.parse(value))
+      return typeof value === "string" && isCalendarDate(value)
     case "checkbox":
       return typeof value === "boolean"
     case "select":

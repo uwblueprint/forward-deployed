@@ -36,7 +36,8 @@ const REQUIREMENTS = ["No experience needed.", "Must be 16 or older.", "Closed-t
 const SKILLS = ["First aid", "Driving", "Cooking", "Tutoring", "Event setup", "Translation", "Photography", "Social media"]
 const RELATIONSHIPS = ["Parent", "Sibling", "Partner", "Friend", "Roommate"]
 const REJECTION_MESSAGES = ["Availability does not match current programs.", "Missing required references.", "Under the minimum age for this program."]
-const DEFAULT_REJECTION_MESSAGE = "Thanks for applying. We can't offer you a volunteer spot right now, but you're welcome to apply again."
+// Sherry approves the real wording; until then, nothing that reads like a real rejection.
+const DEFAULT_REJECTION_MESSAGE = "[Placeholder rejection message - replace with the approved wording]"
 const INTERNAL_NOTES = ["Great phone interview.", "References checked.", "Prefers weekend shifts.", "Follow up about availability.", "Asked about youth programs."]
 const CUSTOM_FIELDS = [
   { entity_type: "application", field_name: "Why do you want to volunteer with us?", field_type: "textarea", required: true, options: [],
@@ -94,6 +95,7 @@ const organization = {
   primary_color: faker.color.rgb({ format: "hex", casing: "lower" }),
   secondary_color: faker.color.rgb({ format: "hex", casing: "lower" }),
   default_rejection_message: DEFAULT_REJECTION_MESSAGE,
+  settings: { event_categories: [...new Set(EVENT_KINDS.map((kind) => kind.category))], skills: SKILLS },
 }
 
 const users = [

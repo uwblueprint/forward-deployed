@@ -10,11 +10,11 @@ organization at signup.
 
 | Role | Can do, inside their own organization only |
 | --- | --- |
-| Admin | Everything a manager can, plus change roles, invite people, read the audit log, write internal notes on applications, and edit organization settings and custom fields |
+| Admin | Everything a manager can, plus change roles, invite people, read the audit log, write internal notes on applications, edit other members' names, and edit organization settings and custom questions |
 | Manager | Review applications, edit volunteer profiles, manage events, registrations, and attendance |
 | Volunteer | Their own profile, applications, and registrations; browse published events |
 
-Manager permissions are a placeholder until the PRD defines them.
+Everyone can edit their own name; only admins can edit someone else's (FOR-65).
 
 Memberships are read-only through the API. Admins change other users' roles with:
 
@@ -127,8 +127,37 @@ event repository contracts.
 ## Applications and volunteer status
 
 A volunteer submits an application (`public.applications`). Staff approve or
-reject it; the database records who reviewed it and when. `volunteers.status`
-always mirrors the latest application.
+reject it with one call, never on their own application:
+
+```ts
+await supabase.rpc("decide_application", {
+  target_application_id: applicationId,
+  decision: "rejected", // or "approved"
+  message: "Shown to the applicant", // optional
+  note: "Admin-only internal note", // optional, admins only; replaces any earlier note
+  expected_status: "pending", // optional; the status the reviewer saw
+})
+```
+
+Server code can call `approveOrRejectApplication` from `src/features/crm/api/`,
+which wraps this and returns typed errors.
+
+A decision only applies if the application still has the status the reviewer
+saw, pending by default, so nobody overturns a decision they haven't seen. To
+change a decision, for example to fix a mistake, pass the current status as
+`expected_status`. Only the volunteer's latest application can be decided, and
+nothing goes back to pending.
+
+| Code | Meaning |
+| --- | --- |
+| 42501 | Not staff in that organization, or their own application |
+| P0002 | No such application in the caller's organization |
+| 55000 | The volunteer has applied again since |
+| 22023 | Already decided, or no longer in the expected status |
+
+The database records who decided and when, and the decision and note are saved
+together. Status can't be written directly. `volunteers.status` always mirrors
+the latest application.
 
 | Status | Volunteer can |
 | --- | --- |
@@ -139,11 +168,40 @@ always mirrors the latest application.
 
 The applicant sees `applicant_message` as soon as it's saved. A rejection with
 a blank message gets the organization's `default_rejection_message`, which
-admins set. Approval clears the message.
+admins set. Approval clears the message. To fix a rejection's message without
+deciding again, staff call `supabase.rpc("edit_applicant_message", {
+target_application_id, message })`, or `editApplicantMessage` from server code.
+
+Answers to an organization's custom questions are covered in "Custom questions
+and settings" below.
 
 Admin-only notes go in `application_notes`. That's a separate table because a
 column grant can't hide a column from applicants: admins and applicants are
 the same database role. Nobody reads or writes notes on their own application.
+
+## Custom questions and settings
+
+Admins define questions in `custom_fields`, for applications or event
+registrations: `text`, `textarea`, `number`, `date`, `select`, `multiselect`, or
+`checkbox`, each optionally required. Select and multiselect questions need
+options; the other types have none.
+
+Answers go in `applications.responses` and `registrations.custom_responses`,
+an object keyed by question id. The database applies the same rules as
+`validateCustomFieldAnswers` in `src/lib/customFieldAnswers.ts`: every required
+question has an answer, every answer matches its question's type (a select
+answer is one of its options, a date is `YYYY-MM-DD`), and answers to questions
+the organization didn't ask are dropped. A bad answer fails with
+`<question> is required` or `<question> has an invalid value` (code 22023).
+
+Each row also keeps `questions`, a snapshot of the questions as they were
+asked. Edits to answers are checked against that snapshot, so renaming,
+changing, or deleting a question later never changes or drops an old answer.
+
+Each organization types its own event categories and skill options into
+`organizations.settings` as `event_categories` and `skills`: lists of free text,
+not fixed choices. Sherry decides the starting lists. `default_rejection_message`
+holds a placeholder until she approves the wording.
 
 ## Events and registrations
 
@@ -191,16 +249,19 @@ rows until it's created.
 - Memberships are created at signup and change only through `set_user_role`, invitations, and server-side scripts.
 - `volunteers.organization_id` comes from the owner's membership, or is filled in when they join, and never changes after that.
 - `volunteers.status` changes only through applications.
+- `applications.status` and `applicant_message` change only through `decide_application` and `edit_applicant_message`.
 - Only the volunteer records their consent; the database sets the time.
 - Only staff record attendance.
 - The database sets `applications.reviewed_by`, `reviewed_at`, and
-  `application_notes.updated_by`.
+  `application_notes.updated_by`, and the `questions` snapshot on applications
+  and registrations.
 - Ids, `user_id`, `event_id`, `volunteer_id`, and event `organization_id` never change after insert.
 
 Tests: `supabase/tests/database/`.
 
 ## Known gaps
 
-- The default rejection wording needs PM sign-off; the seed's is placeholder copy.
+- Sherry still has to approve the rejection wording and provide the event
+  category and skill lists; the seed uses placeholders.
 - No `registration_count` column yet. Add a trigger-maintained one if counting gets slow.
 - No screens for invitations or the audit log yet.

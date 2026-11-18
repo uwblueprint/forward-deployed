@@ -35,9 +35,14 @@ export type EventCancellationResult<T> =
 //   volunteer, the event isn't open (not published / started / past its
 //   registration deadline), or (for cancellation) attendance was already
 //   recorded or the event is completed.
+// - 22023 invalid_parameter_value: the database's answer check
+//   (.../20261111034139_org_config.sql) refused an answer. It applies the
+//   same rules as validateCustomFieldAnswers, so this only happens if the
+//   event's questions changed in between.
 const UNIQUE_VIOLATION = "23505"
 const CAPACITY_VIOLATION = "23514"
 const RLS_VIOLATION = "42501"
+const INVALID_ANSWERS = "22023"
 
 type Row = { id: string }
 
@@ -45,6 +50,7 @@ function mapWriteError(error: { code?: string; message: string }): EventRegistra
   if (error.code === UNIQUE_VIOLATION) return { type: "already-registered" }
   if (error.code === CAPACITY_VIOLATION) return { type: "full" }
   if (error.code === RLS_VIOLATION) return { type: "not-eligible" }
+  if (error.code === INVALID_ANSWERS) return { type: "validation", fieldErrors: { answers: [error.message] } }
   return { type: "backend", message: error.message }
 }
 
