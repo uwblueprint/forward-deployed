@@ -7,7 +7,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(194);
+select plan(195);
 
 insert into auth.users (id, email) values
   ('20000000-0000-0000-0000-0000000000a0', 'admin.a@example.com'),
@@ -99,7 +99,7 @@ select is((select string_agg(line, E'\n' order by line collate "C") from (
     group by table_name, privilege_type
   ) t),
   $grants$application_drafts INSERT: responses, volunteer_id
-application_drafts UPDATE: responses
+application_drafts UPDATE: responses, volunteer_id
 application_notes INSERT: application_id, internal_note
 application_notes UPDATE: internal_note
 applications INSERT: responses, volunteer_id
@@ -227,10 +227,18 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a2", "role": "authenticated"}';
 select lives_ok($$ insert into public.application_drafts (volunteer_id, responses) values ('30000000-0000-0000-0000-0000000000a2', '{"phone": "519-555-0100"}') $$, 'volunteer can save a draft');
 select throws_ok($$ insert into public.application_drafts (volunteer_id, responses) values ('30000000-0000-0000-0000-0000000000a1', '{}') $$, '42501', null, 'volunteer cannot save a draft for someone else');
+-- Matches what PostgREST actually generates for supabase-js's
+-- .upsert({volunteer_id, responses}, {onConflict: "volunteer_id"}) - every
+-- submitted column, including the conflict target, goes in the SET list,
+-- so UPDATE needs a grant on volunteer_id too even though its value can
+-- never actually change (see the migration's UPDATE grant comment).
 select lives_ok($$ insert into public.application_drafts (volunteer_id, responses) values ('30000000-0000-0000-0000-0000000000a2', '{}')
-  on conflict (volunteer_id) do update set responses = excluded.responses $$, 'saving again replaces the existing draft');
+  on conflict (volunteer_id) do update set volunteer_id = excluded.volunteer_id, responses = excluded.responses $$, 'saving again replaces the existing draft');
 select is((select responses from public.application_drafts where volunteer_id = '30000000-0000-0000-0000-0000000000a2'), '{}'::jsonb,
   'the replaced draft has the new responses, not the old ones');
+select throws_ok($$ insert into public.application_drafts (volunteer_id, responses) values ('30000000-0000-0000-0000-0000000000a2', '{}')
+  on conflict (volunteer_id) do update set volunteer_id = '30000000-0000-0000-0000-0000000000a1', responses = excluded.responses $$,
+  '42501', null, 'the UPDATE grant on volunteer_id does not let a save hijack the row to someone else''s id');
 
 set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a1", "role": "authenticated"}';
 select is_empty('select * from public.application_drafts', 'another volunteer cannot read someone else''s draft');

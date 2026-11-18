@@ -18,7 +18,13 @@ revoke all on table public.application_drafts from anon, authenticated;
 grant select, insert, update, delete on table public.application_drafts to service_role;
 grant select, delete on table public.application_drafts to authenticated;
 grant insert (volunteer_id, responses) on table public.application_drafts to authenticated;
-grant update (responses) on table public.application_drafts to authenticated;
+-- volunteer_id is grantable here too, not just responses: PostgREST's
+-- upsert (on_conflict=volunteer_id) always puts every submitted column,
+-- including the conflict target, in the UPDATE's SET list - Postgres then
+-- requires UPDATE privilege on that column even though its value never
+-- actually changes (RLS's with check still blocks setting it to anyone
+-- else's volunteer_id).
+grant update (responses, volunteer_id) on table public.application_drafts to authenticated;
 
 create policy "application_drafts: volunteers manage their own"
   on public.application_drafts for all to authenticated
