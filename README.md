@@ -246,7 +246,7 @@ locally; signup confirmation is tested against a hosted project.
 `accordion`, `alert`, `aspect-ratio`, `badge`, `button`, `card`, `checkbox`,
 `collapsible`, `command`, `dialog`, `dropdown-menu`, `hover-card`, `input`,
 `input-group`, `label`, `navigation-menu`, `popover`, `scroll-area`, `select`,
-`table`, `tabs`, `textarea`, `tooltip`. All are exported from
+`skeleton`, `table`, `tabs`, `textarea`, `tooltip`. All are exported from
 `src/components/ui/index.ts`.
 
 `tooltip` needs a `TooltipProvider` ancestor before use.
