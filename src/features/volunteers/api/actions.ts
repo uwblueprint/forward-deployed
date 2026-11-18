@@ -20,9 +20,9 @@ export async function submitVolunteerOnboardingAction(
  * doc comment.
  */
 export async function submitVolunteerApplicationAction(
-  input: unknown
+  responses: unknown = {}
 ): Promise<VolunteerApplicationResult<{ id: string }>> {
-  return submitVolunteerApplication(input)
+  return submitVolunteerApplication(responses)
 }
 
 /**
