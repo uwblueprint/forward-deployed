@@ -7,7 +7,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(195);
+select plan(197);
 
 insert into auth.users (id, email) values
   ('20000000-0000-0000-0000-0000000000a0', 'admin.a@example.com'),
@@ -273,7 +273,7 @@ select is((select status::text from public.volunteers where id = '30000000-0000-
 select lives_ok($$ select public.decide_application(id, 'approved', 'leftover') from public.applications where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4') $$, 'admin can approve a new application');
 select is((select applicant_message from public.applications where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4')), null, 'approving clears any rejection message');
 select throws_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a2', 'approved') $$, '22023', 'Application is already approved', 'the same decision cannot be made twice');
-select throws_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a2', 'pending') $$, '22023', 'Application is approved and cannot become pending', 'a decision cannot send an application back to pending');
+select throws_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a2', 'pending') $$, '22023', 'The decision must be approved or rejected', 'a decision cannot send an application back to pending');
 select throws_ok($$ update public.applications set status = 'rejected' where id = '60000000-0000-0000-0000-0000000000a2' $$, '42501', null, 'decisions cannot be written directly, even by admins');
 
 select results_eq('select internal_note from public.application_notes order by internal_note', $$ values ('References did not reply.'), ('Second interview booked.') $$, 'admin reads their org''s notes only');
@@ -369,13 +369,24 @@ select lives_ok($$ update public.events set status = 'cancelled' where id = '400
 select lives_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a2', 'rejected', null, 'Missed two shifts.') $$, 'admin can revoke an approval');
 select results_eq($$ select internal_note, updated_by from public.application_notes where application_id = '60000000-0000-0000-0000-0000000000a2' $$,
   $$ values ('Missed two shifts.', '20000000-0000-0000-0000-0000000000a0'::uuid) $$, 'the internal note is saved with the decision');
-select throws_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a2', 'approved') $$, '22023', 'Application is rejected and cannot become approved',
-  'a rejection is final; the volunteer reapplies');
+reset role;
+insert into public.applications (id, volunteer_id) values ('60000000-0000-0000-0000-0000000000a9', '30000000-0000-0000-0000-0000000000a2');
+set local role authenticated;
+select throws_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a2', 'approved') $$, '22023', 'Only the latest application can be decided',
+  'an older application cannot be decided once the volunteer reapplies');
+reset role;
+delete from public.applications where id = '60000000-0000-0000-0000-0000000000a9';
+set local role authenticated;
 select is((select applicant_message from public.applications where id = '60000000-0000-0000-0000-0000000000a2'),
   'Thanks for applying. We are not able to take you on right now.', 'a rejection with no message gets the org default');
 select results_eq($$ select applicant_message from public.decide_application(
   (select id from public.applications where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4')), 'rejected', '  ') $$,
   $$ values ('Thanks for applying. We are not able to take you on right now.') $$, 'a rejection with a blank message gets the org default');
+select results_eq($$ select status::text, applicant_message from public.decide_application(
+  (select id from public.applications where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4')), 'approved') $$,
+  $$ values ('approved', null::text) $$, 'admin can undo a rejection without the volunteer reapplying');
+select is((select status::text from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4' and organization_id = '10000000-0000-0000-0000-00000000000a'), 'approved',
+  'undoing a rejection approves the volunteer');
 
 set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a1", "role": "authenticated"}';
 select results_eq($$ select status::text from public.events where id = '40000000-0000-0000-0000-0000000000a1' $$, $$ values ('cancelled') $$, 'volunteer still sees a cancelled event they registered for');

@@ -138,9 +138,9 @@ await supabase.rpc("decide_application", {
 })
 ```
 
-A pending application can be approved or rejected, and an approval can be
-revoked by rejecting it. A rejection is final; the volunteer reapplies. Any
-other change, including making the same decision twice, fails with code 22023.
+Staff can change a decision later, either way, for example to fix a mistake,
+but only on the volunteer's latest application. An application can't go back
+to pending, and making the same decision twice fails, both with code 22023.
 The database records who decided and when, and the decision and note are saved
 together. Status can't be written directly. `volunteers.status` always mirrors
 the latest application.

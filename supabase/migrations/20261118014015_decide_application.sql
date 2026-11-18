@@ -1,8 +1,8 @@
 -- Application decisions (FOR-65): public.decide_application is the only way
 -- to approve or reject through the API. Staff decide applications in their
--- organization, never their own. A pending application can be approved or
--- rejected, and an approval can be revoked by rejecting it. Anything else,
--- including deciding the same thing twice, is refused.
+-- organization, never their own. A decision can be changed later, either
+-- way, to fix a mistake. Only the volunteer's latest application can be
+-- decided, nothing goes back to pending, and repeating a decision is refused.
 -- Usage: supabase.rpc("decide_application", { target_application_id, decision, message?, note? })
 
 revoke update (status, applicant_message) on table public.applications from authenticated;
@@ -38,12 +38,15 @@ begin
   if nullif(btrim(note), '') is not null and not (select private.is_admin()) then
     raise exception 'Only admins can write internal notes' using errcode = '42501';
   end if;
+  if (decision in ('approved', 'rejected')) is not true then
+    raise exception 'The decision must be approved or rejected' using errcode = '22023';
+  end if;
   if app.status = decision then
     raise exception 'Application is already %', decision using errcode = '22023';
   end if;
-  if ((app.status = 'pending' and decision in ('approved', 'rejected'))
-      or (app.status = 'approved' and decision = 'rejected')) is not true then
-    raise exception 'Application is % and cannot become %', app.status, coalesce(decision::text, 'blank') using errcode = '22023';
+  if exists (select 1 from public.applications
+             where volunteer_id = app.volunteer_id and (submitted_at, id) > (app.submitted_at, app.id)) then
+    raise exception 'Only the latest application can be decided' using errcode = '22023';
   end if;
 
   update public.applications
