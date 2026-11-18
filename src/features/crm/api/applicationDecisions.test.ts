@@ -1,21 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { mockGetUser, mockGetUserRole, mockApplicationMaybeSingle, mockRpc } = vi.hoisted(() => ({
+const { mockGetUser, mockRpc } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
-  mockGetUserRole: vi.fn(),
-  mockApplicationMaybeSingle: vi.fn(),
   mockRpc: vi.fn(),
 }))
-
-vi.mock("@/features/auth", () => ({ getUserRole: mockGetUserRole }))
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(async () => ({
     auth: { getUser: mockGetUser },
-    from: (table: string) => {
-      if (table !== "applications") throw new Error(`unexpected table: ${table}`)
-      return { select: () => ({ eq: () => ({ maybeSingle: mockApplicationMaybeSingle }) }) }
-    },
     rpc: mockRpc,
   })),
 }))
@@ -23,26 +15,27 @@ vi.mock("@/lib/supabase/server", () => ({
 import { approveOrRejectApplication } from "./applicationDecisions"
 
 const APPLICATION_ID = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b"
-const user = { id: "user-1" }
 
-function staff(role: "admin" | "manager", status: "pending" | "approved" | "rejected" = "pending") {
-  mockGetUser.mockResolvedValue({ data: { user } })
-  mockGetUserRole.mockResolvedValue(role)
-  mockApplicationMaybeSingle.mockResolvedValue({ data: { status }, error: null })
+function signedIn() {
+  mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
 }
 
-function decided(status: "approved" | "rejected", applicant_message: string | null = null) {
-  mockRpc.mockResolvedValue({ data: { id: APPLICATION_ID, status, applicant_message }, error: null })
+function decides(status: "approved" | "rejected") {
+  mockRpc.mockResolvedValue({ data: { id: APPLICATION_ID, status }, error: null })
+}
+
+function fails(code: string, message: string) {
+  mockRpc.mockResolvedValue({ data: null, error: { code, message, details: null, hint: null } })
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
 })
 
 describe("approveOrRejectApplication", () => {
   it("approves a pending application", async () => {
-    staff("admin")
-    decided("approved")
+    signedIn()
+    decides("approved")
 
     await expect(approveOrRejectApplication(APPLICATION_ID, "approved")).resolves.toEqual({
       ok: true,
@@ -52,12 +45,13 @@ describe("approveOrRejectApplication", () => {
       target_application_id: APPLICATION_ID,
       decision: "approved",
       message: undefined,
+      expected_status: "pending",
     })
   })
 
   it("rejects a pending application with the applicant's message", async () => {
-    staff("admin")
-    decided("rejected", "No availability")
+    signedIn()
+    decides("rejected")
 
     await expect(approveOrRejectApplication(APPLICATION_ID, "rejected", "No availability")).resolves.toEqual({
       ok: true,
@@ -67,107 +61,59 @@ describe("approveOrRejectApplication", () => {
       target_application_id: APPLICATION_ID,
       decision: "rejected",
       message: "No availability",
+      expected_status: "pending",
     })
   })
 
-  it("doesn't send a message when approving", async () => {
-    staff("admin")
-    decided("approved")
+  it("ignores a leftover message when approving, however long", async () => {
+    signedIn()
+    decides("approved")
 
-    await approveOrRejectApplication(APPLICATION_ID, "approved", "Leftover text")
-
+    await expect(approveOrRejectApplication(APPLICATION_ID, "approved", "x".repeat(5000))).resolves.toMatchObject({ ok: true })
     expect(mockRpc).toHaveBeenCalledWith("decide_application", expect.objectContaining({ message: undefined }))
   })
 
-  it("lets a manager decide", async () => {
-    staff("manager")
-    decided("approved")
+  it("changes a decision when told what it was", async () => {
+    signedIn()
+    decides("approved")
 
-    await expect(approveOrRejectApplication(APPLICATION_ID, "approved")).resolves.toEqual({
-      ok: true,
-      data: { status: "approved" },
-    })
+    await expect(
+      approveOrRejectApplication(APPLICATION_ID, "approved", undefined, { expectedStatus: "rejected" })
+    ).resolves.toEqual({ ok: true, data: { status: "approved" } })
+    expect(mockRpc).toHaveBeenCalledWith("decide_application", expect.objectContaining({ expected_status: "rejected" }))
   })
 
-  it("lets staff undo a rejection", async () => {
-    staff("admin", "rejected")
-    decided("approved")
+  it("lets a manager decide (the database decides who is staff)", async () => {
+    signedIn()
+    decides("approved")
 
-    await expect(approveOrRejectApplication(APPLICATION_ID, "approved")).resolves.toEqual({
-      ok: true,
-      data: { status: "approved" },
-    })
+    await expect(approveOrRejectApplication(APPLICATION_ID, "approved")).resolves.toMatchObject({ ok: true })
   })
 
-  it("refuses the same decision twice", async () => {
-    staff("admin", "approved")
+  it.each([
+    ["42501", "Only staff can decide applications", "not-allowed", "a volunteer calls it"],
+    ["42501", "You cannot review your own application", "not-allowed", "staff decide their own application"],
+    ["P0002", "Application not found in your organization", "not-found", "the application is in another organization"],
+    ["22023", "Application is already approved", "already-decided", "the same decision is made twice"],
+    ["22023", "Application is rejected, not pending", "already-decided", "someone else decided it first"],
+    ["55000", "Only the latest application can be decided", "not-latest", "the volunteer has applied again"],
+  ])("maps %s (%s) to %s when %s", async (code, message, type) => {
+    signedIn()
+    fails(code, message)
 
     await expect(approveOrRejectApplication(APPLICATION_ID, "approved")).resolves.toEqual({
       ok: false,
-      error: { type: "already-decided" },
-    })
-    expect(mockRpc).not.toHaveBeenCalled()
-  })
-
-  it("refuses the same decision when someone else made it a moment earlier", async () => {
-    staff("admin")
-    mockRpc.mockResolvedValue({ data: null, error: { code: "22023", message: "Application is already approved" } })
-
-    await expect(approveOrRejectApplication(APPLICATION_ID, "approved")).resolves.toEqual({
-      ok: false,
-      error: { type: "already-decided" },
+      error: { type },
     })
   })
 
-  it("refuses a volunteer", async () => {
-    mockGetUser.mockResolvedValue({ data: { user } })
-    mockGetUserRole.mockResolvedValue("volunteer")
+  it("returns unexpected database errors as backend errors", async () => {
+    signedIn()
+    fails("XX000", "boom")
 
     await expect(approveOrRejectApplication(APPLICATION_ID, "approved")).resolves.toEqual({
       ok: false,
-      error: { type: "not-allowed" },
-    })
-    expect(mockRpc).not.toHaveBeenCalled()
-  })
-
-  it("refuses when the role can't be read", async () => {
-    mockGetUser.mockResolvedValue({ data: { user } })
-    mockGetUserRole.mockResolvedValue(null)
-
-    await expect(approveOrRejectApplication(APPLICATION_ID, "approved")).resolves.toEqual({
-      ok: false,
-      error: { type: "not-allowed" },
-    })
-  })
-
-  it("refuses staff deciding their own application", async () => {
-    staff("manager")
-    mockRpc.mockResolvedValue({ data: null, error: { code: "42501", message: "You cannot review your own application" } })
-
-    await expect(approveOrRejectApplication(APPLICATION_ID, "approved")).resolves.toEqual({
-      ok: false,
-      error: { type: "not-allowed" },
-    })
-  })
-
-  it("returns not-found for an application outside the caller's organization", async () => {
-    staff("admin")
-    mockApplicationMaybeSingle.mockResolvedValue({ data: null, error: null })
-
-    await expect(approveOrRejectApplication(APPLICATION_ID, "approved")).resolves.toEqual({
-      ok: false,
-      error: { type: "not-found" },
-    })
-    expect(mockRpc).not.toHaveBeenCalled()
-  })
-
-  it("returns not-latest when the volunteer has applied again since", async () => {
-    staff("admin", "rejected")
-    mockRpc.mockResolvedValue({ data: null, error: { code: "22023", message: "Only the latest application can be decided" } })
-
-    await expect(approveOrRejectApplication(APPLICATION_ID, "approved")).resolves.toEqual({
-      ok: false,
-      error: { type: "not-latest" },
+      error: { type: "backend", message: "boom" },
     })
   })
 
@@ -178,10 +124,13 @@ describe("approveOrRejectApplication", () => {
       ok: false,
       error: { type: "unauthenticated" },
     })
+    expect(mockRpc).not.toHaveBeenCalled()
   })
 
   it("rejects bad input before touching the database", async () => {
-    const result = await approveOrRejectApplication("not-an-id", "pending" as "approved", "x".repeat(2001))
+    const result = await approveOrRejectApplication("not-an-id", "pending" as "approved", undefined, {
+      expectedStatus: "maybe" as "pending",
+    })
 
     expect(result).toEqual({
       ok: false,
@@ -190,20 +139,16 @@ describe("approveOrRejectApplication", () => {
         fieldErrors: {
           applicationId: expect.any(Array),
           decision: expect.any(Array),
-          applicantMessage: expect.any(Array),
+          expectedStatus: expect.any(Array),
         },
       },
     })
     expect(mockGetUser).not.toHaveBeenCalled()
   })
 
-  it("passes through unexpected database errors", async () => {
-    staff("admin")
-    mockRpc.mockResolvedValue({ data: null, error: { code: "XX000", message: "boom" } })
+  it("rejects a rejection message over 2000 characters", async () => {
+    const result = await approveOrRejectApplication(APPLICATION_ID, "rejected", "x".repeat(2001))
 
-    await expect(approveOrRejectApplication(APPLICATION_ID, "approved")).resolves.toEqual({
-      ok: false,
-      error: { type: "backend", message: "boom" },
-    })
+    expect(result).toMatchObject({ ok: false, error: { type: "validation", fieldErrors: { applicantMessage: expect.any(Array) } } })
   })
 })

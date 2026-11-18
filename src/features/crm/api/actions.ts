@@ -1,8 +1,7 @@
 "use server"
 
 import { approveOrRejectApplication } from "./applicationDecisions"
-import type { ApplicationDecision, ApplicationDecisionResult } from "./applicationDecisions"
-import type { Enums } from "@/lib/supabase/database.types"
+import type { ApplicationDecision, ApplicationDecisionOptions, ApplicationDecisionResult } from "./applicationDecisions"
 
 /**
  * Server Action wrapper so a Client Component can call this directly. Not
@@ -11,7 +10,8 @@ import type { Enums } from "@/lib/supabase/database.types"
 export async function approveOrRejectApplicationAction(
   applicationId: string,
   decision: ApplicationDecision,
-  applicantMessage?: string
-): Promise<ApplicationDecisionResult<{ status: Enums<"volunteer_status"> }>> {
-  return approveOrRejectApplication(applicationId, decision, applicantMessage)
+  applicantMessage?: string,
+  options?: ApplicationDecisionOptions
+): Promise<ApplicationDecisionResult> {
+  return approveOrRejectApplication(applicationId, decision, applicantMessage, options)
 }
