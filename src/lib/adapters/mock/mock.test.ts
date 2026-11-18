@@ -3,6 +3,7 @@ import {
   MOCK_EVENTS,
   MOCK_LATENCY_MS,
   MOCK_ORGANIZATIONS,
+  MOCK_USERS,
   MOCK_VOLUNTEERS,
   MockEventRepository,
   MockVolunteerRepository,
@@ -51,6 +52,16 @@ describe("MockVolunteerRepository", () => {
     const { value, elapsed } = await timed(new MockVolunteerRepository().getAll())
     expect(value).toEqual(MOCK_VOLUNTEERS)
     expect(elapsed).toBeGreaterThanOrEqual(MOCK_LATENCY_MS)
+  })
+
+  it("joins each volunteer to their user", async () => {
+    const { value } = await timed(new MockVolunteerRepository().getAllWithUser())
+    expect(value).toHaveLength(MOCK_VOLUNTEERS.length)
+    const user = MOCK_USERS.find((u) => u.id === MOCK_VOLUNTEERS[0].user_id)!
+    expect(value[0]).toEqual({
+      ...MOCK_VOLUNTEERS[0],
+      user: { first_name: user.first_name, last_name: user.last_name, email: user.email },
+    })
   })
 
   it("finds a volunteer by id, or null", async () => {
