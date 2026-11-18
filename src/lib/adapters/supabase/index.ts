@@ -5,12 +5,24 @@ import type { EventCreate, EventRepository, EventUpdate, VolunteerCreate, Volunt
 /** Returns a client for the current request, e.g. createServerSupabaseClient. */
 export type ClientFactory = () => Promise<SupabaseClient<Database>>
 
+// Embeds users through volunteers_user_id_fkey, renamed to `user`.
+const VOLUNTEER_WITH_USER_COLUMNS = "*, user:users(first_name, last_name, email)"
+
 /** Volunteers through Supabase. RLS decides which rows the signed-in user can read or change. */
 export class SupabaseVolunteerRepository implements VolunteerRepository {
   constructor(private readonly client: ClientFactory) {}
 
   async getAll() {
     const { data, error } = await (await this.client()).from("volunteers").select().order("created_at")
+    if (error) throw error
+    return data
+  }
+
+  async getAllWithUser() {
+    const { data, error } = await (await this.client())
+      .from("volunteers")
+      .select(VOLUNTEER_WITH_USER_COLUMNS)
+      .order("created_at")
     if (error) throw error
     return data
   }

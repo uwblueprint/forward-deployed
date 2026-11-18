@@ -74,6 +74,25 @@ export const MOCK_VOLUNTEERS: Volunteer[] = [
   volunteer(12, { organization_id: LITERACY, status: "rejected", phone: "519-555-0112", location: "St. Jacobs, ON" }),
 ]
 
+const VOLUNTEER_NAMES = [
+  ["Maya", "Chen"], ["Daniel", "Okafor"], ["Sofia", "Martins"], ["Liam", "Patel"],
+  ["Aisha", "Rahman"], ["Noah", "Fischer"], ["Grace", "Kim"], ["Omar", "Haddad"],
+  ["Elena", "Rossi"], ["Ethan", "Nguyen"], ["Zara", "Ali"], ["Lucas", "Brown"],
+] as const
+
+/** The users behind MOCK_VOLUNTEERS, matched by user_id. */
+export const MOCK_USERS: Tables<"users">[] = MOCK_VOLUNTEERS.map((v, i) => {
+  const [first_name, last_name] = VOLUNTEER_NAMES[i]
+  return {
+    id: v.user_id,
+    first_name,
+    last_name,
+    email: `${first_name}.${last_name}@example.com`.toLowerCase(),
+    created_at: CREATED_AT,
+    updated_at: CREATED_AT,
+  }
+})
+
 function event(n: number, fields: Pick<Event, "organization_id" | "status" | "title" | "starts_at" | "ends_at"> & Partial<Event>): Event {
   return {
     id: `00000000-0000-4000-8003-${n.toString().padStart(12, "0")}`,
