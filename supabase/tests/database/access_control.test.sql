@@ -7,7 +7,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(186);
+select plan(194);
 
 insert into auth.users (id, email) values
   ('20000000-0000-0000-0000-0000000000a0', 'admin.a@example.com'),
@@ -88,7 +88,7 @@ select is((select (select count(*) from information_schema.role_table_grants whe
   0::bigint, 'anon has no grants on tables, columns, or functions');
 select is((select string_agg(format('%s %s', table_name, privilege_type), ', ' order by table_name::text collate "C", privilege_type::text collate "C")
   from information_schema.role_table_grants where grantee = 'authenticated' and table_schema = 'public'),
-  'application_notes DELETE, application_notes SELECT, applications SELECT, audit_log SELECT, custom_fields DELETE, custom_fields SELECT, events DELETE, events SELECT, '
+  'application_drafts DELETE, application_drafts SELECT, application_notes DELETE, application_notes SELECT, applications SELECT, audit_log SELECT, custom_fields DELETE, custom_fields SELECT, events DELETE, events SELECT, '
   'invitations SELECT, memberships SELECT, organizations SELECT, registrations DELETE, registrations SELECT, users SELECT, volunteers SELECT',
   'signed-in users have only these table-wide grants');
 -- Changing a grant means updating this list on purpose.
@@ -98,7 +98,9 @@ select is((select string_agg(line, E'\n' order by line collate "C") from (
     where grantee = 'authenticated' and table_schema = 'public' and privilege_type in ('INSERT', 'UPDATE')
     group by table_name, privilege_type
   ) t),
-  $grants$application_notes INSERT: application_id, internal_note
+  $grants$application_drafts INSERT: responses, volunteer_id
+application_drafts UPDATE: responses
+application_notes INSERT: application_id, internal_note
 application_notes UPDATE: internal_note
 applications INSERT: responses, volunteer_id
 applications UPDATE: applicant_message, status
@@ -217,6 +219,28 @@ select is_empty('select * from public.application_notes', 'applicant cannot read
 select throws_ok($$ insert into public.application_notes (application_id, internal_note) values ('60000000-0000-0000-0000-0000000000a3', 'x') $$, '42501', null, 'applicant cannot write internal notes');
 select lives_ok($$ insert into public.applications (volunteer_id, responses) values ('30000000-0000-0000-0000-0000000000a3', '{"70000000-0000-0000-0000-0000000000a1": "Second try"}') $$, 'rejected volunteer can reapply');
 select is((select status::text from public.volunteers where id = '30000000-0000-0000-0000-0000000000a3'), 'pending', 'reapplying puts the volunteer back to pending');
+reset role;
+
+-- Application drafts, org A --------------------------------------------------------------
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a2", "role": "authenticated"}';
+select lives_ok($$ insert into public.application_drafts (volunteer_id, responses) values ('30000000-0000-0000-0000-0000000000a2', '{"phone": "519-555-0100"}') $$, 'volunteer can save a draft');
+select throws_ok($$ insert into public.application_drafts (volunteer_id, responses) values ('30000000-0000-0000-0000-0000000000a1', '{}') $$, '42501', null, 'volunteer cannot save a draft for someone else');
+select lives_ok($$ insert into public.application_drafts (volunteer_id, responses) values ('30000000-0000-0000-0000-0000000000a2', '{}')
+  on conflict (volunteer_id) do update set responses = excluded.responses $$, 'saving again replaces the existing draft');
+select is((select responses from public.application_drafts where volunteer_id = '30000000-0000-0000-0000-0000000000a2'), '{}'::jsonb,
+  'the replaced draft has the new responses, not the old ones');
+
+set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a1", "role": "authenticated"}';
+select is_empty('select * from public.application_drafts', 'another volunteer cannot read someone else''s draft');
+
+set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a0", "role": "authenticated"}';
+select is_empty('select * from public.application_drafts', 'staff cannot read a volunteer''s draft either - nobody reviews a draft');
+
+set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a2", "role": "authenticated"}';
+select lives_ok($$ delete from public.application_drafts where volunteer_id = '30000000-0000-0000-0000-0000000000a2' $$, 'volunteer can delete their own draft');
+select is_empty('select * from public.application_drafts', 'the draft is gone after deleting it');
 reset role;
 
 -- New user in org A creating a profile and applying -----------------------------------

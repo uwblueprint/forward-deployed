@@ -145,6 +145,16 @@ Admin-only notes go in `application_notes`. That's a separate table because a
 column grant can't hide a column from applicants: admins and applicants are
 the same database role. Nobody reads or writes notes on their own application.
 
+An application is immutable once submitted: no RLS policy ever lets a
+volunteer `UPDATE` their own application (not even a column grant exists for
+`responses` on that table beyond the initial insert), and this is deliberate
+- a volunteer who wants to change their answers rejects nothing and edits
+nothing; they wait to be rejected and submit a new application instead. In
+progress answers, before submission, live separately in
+`application_drafts` - one per volunteer, owner-only (not even staff can read
+a draft, since nobody reviews unsubmitted work), replaced wholesale on every
+save.
+
 ## Events and registrations
 
 - An event is open while it's published, hasn't started, and is before its
