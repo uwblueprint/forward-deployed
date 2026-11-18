@@ -5,11 +5,13 @@ import {
   forgotPasswordSchema,
   loginSchema,
   registerSchema,
+  resendVerificationSchema,
   resetPasswordSchema,
   verifyResetCodeSchema,
   type ForgotPasswordInput,
   type LoginInput,
   type RegisterInput,
+  type ResendVerificationInput,
   type ResetPasswordInput,
   type VerifyResetCodeInput,
 } from "../schemas/authSchema";
@@ -99,6 +101,59 @@ export async function signUpWithEmail(
   }
 
   return { ok: true, data: { user: data.user, session: data.session } };
+}
+
+const RATE_LIMIT_CODES = new Set(["over_email_send_rate_limit", "over_request_rate_limit"]);
+
+function isRateLimitError(error: { code?: string; status?: number }): boolean {
+  return (
+    (error.code !== undefined && RATE_LIMIT_CODES.has(error.code)) ||
+    error.status === 429
+  );
+}
+
+/**
+ * Plain server-side function — not a Server Action. Call it from inside a
+ * Server Action or Route Handler; do not add "use server" to this file.
+ *
+ * Unlike `requestPasswordReset`'s `resetPasswordForEmail`, Supabase's
+ * `resend` can return account-revealing errors (e.g. `user_not_found`, or an
+ * already-confirmed account). Only rate-limit errors are surfaced; every
+ * other error is logged (code/status only, never the email) and swallowed
+ * so the response is identical whether or not the account exists.
+ */
+export async function resendVerificationEmail(
+  input: ResendVerificationInput,
+  options?: { emailRedirectTo?: string },
+): Promise<AuthResult<null>> {
+  const parsed = resendVerificationSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: validationError(z.flattenError(parsed.error).fieldErrors),
+    };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email: parsed.data.email,
+    ...(options?.emailRedirectTo
+      ? { options: { emailRedirectTo: options.emailRedirectTo } }
+      : {}),
+  });
+
+  if (error) {
+    if (isRateLimitError(error)) {
+      return { ok: false, error: backendError(error.message) };
+    }
+    console.error("resendVerificationEmail suppressed error", {
+      code: error.code,
+      status: error.status,
+    });
+  }
+
+  return { ok: true, data: null };
 }
 
 /**
