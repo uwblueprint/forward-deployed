@@ -7,7 +7,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(189);
+select plan(195);
 
 insert into auth.users (id, email) values
   ('20000000-0000-0000-0000-0000000000a0', 'admin.a@example.com'),
@@ -78,10 +78,10 @@ insert into public.custom_fields (id, organization_id, entity_type, field_name, 
 select is((select count(*) from pg_tables where schemaname = 'public' and not rowsecurity), 0::bigint,
   'RLS is enabled on every public table');
 select is((select string_agg(p.proname::text, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'),
-  'create_invitation,redeem_invitation,registration_count,revoke_invitation,set_user_role', 'the API schema exposes only the intended functions');
+  'create_invitation,decide_application,redeem_invitation,registration_count,revoke_invitation,set_user_role', 'the API schema exposes only the intended functions');
 select is((select string_agg(p.proname::text, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute')),
-  'create_invitation,redeem_invitation,registration_count,revoke_invitation,set_user_role', 'signed-in users can call only those functions');
+  'create_invitation,decide_application,redeem_invitation,registration_count,revoke_invitation,set_user_role', 'signed-in users can call only those functions');
 select is((select (select count(*) from information_schema.role_table_grants where grantee = 'anon' and table_schema = 'public')
   + (select count(*) from information_schema.column_privileges where grantee = 'anon' and table_schema = 'public')
   + (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public', 'private') and has_function_privilege('anon', p.oid, 'execute'))),
@@ -101,7 +101,6 @@ select is((select string_agg(line, E'\n' order by line collate "C") from (
   $grants$application_notes INSERT: application_id, internal_note
 application_notes UPDATE: internal_note
 applications INSERT: responses, volunteer_id
-applications UPDATE: applicant_message, status
 custom_fields INSERT: entity_type, field_name, field_type, options, organization_id, position, required
 custom_fields UPDATE: entity_type, field_name, field_type, options, position, required
 events INSERT: capacity, category, description, ends_at, location, organization_id, registration_deadline, requirements, starts_at, status, title
@@ -175,7 +174,7 @@ select lives_ok($$ update public.volunteers set phone = '519-555-0100', shift_pr
 select lives_ok($$ update public.volunteers set consent_accepted_at = '2000-01-01' where id = '30000000-0000-0000-0000-0000000000a1' $$, 'volunteer can record consent');
 select is((select consent_accepted_at from public.volunteers where id = '30000000-0000-0000-0000-0000000000a1'), now(), 'the database sets the consent time');
 select is_empty($$ update public.volunteers set phone = '000' where id = '30000000-0000-0000-0000-0000000000a2' returning id $$, 'volunteer cannot edit another profile');
-select is_empty($$ update public.applications set status = 'approved' where id = '60000000-0000-0000-0000-0000000000a1' returning id $$, 'volunteer cannot review their application');
+select throws_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a1', 'rejected') $$, '42501', 'Only staff can decide applications', 'volunteer cannot decide applications');
 select throws_ok($$ insert into public.applications (volunteer_id) values ('30000000-0000-0000-0000-0000000000a1') $$, '42501', null, 'approved volunteer cannot apply again');
 
 select is_empty('select * from public.application_notes', 'volunteer cannot read notes on other applications');
@@ -268,11 +267,14 @@ select set_eq('select id from public.events', $$ values ('40000000-0000-0000-000
 select set_eq('select event_id from public.registrations', $$ values ('40000000-0000-0000-0000-0000000000a1'::uuid), ('40000000-0000-0000-0000-0000000000a3') $$, 'admin sees org A registrations only');
 select is_empty($$ select id from public.applications where volunteer_id = '30000000-0000-0000-0000-0000000000b1' $$, 'admin cannot see org B applications');
 
-select results_eq($$ update public.applications set status = 'approved' where id = '60000000-0000-0000-0000-0000000000a2' returning reviewed_by, reviewed_at = now() $$,
+select results_eq($$ select reviewed_by, reviewed_at = now() from public.decide_application('60000000-0000-0000-0000-0000000000a2', 'approved') $$,
   $$ values ('20000000-0000-0000-0000-0000000000a0'::uuid, true) $$, 'admin can approve; the database records who and when');
 select is((select status::text from public.volunteers where id = '30000000-0000-0000-0000-0000000000a2'), 'approved', 'approval updates the volunteer status');
-select lives_ok($$ update public.applications set status = 'approved', applicant_message = 'leftover' where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4') $$, 'admin can approve a new application');
+select lives_ok($$ select public.decide_application(id, 'approved', 'leftover') from public.applications where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4') $$, 'admin can approve a new application');
 select is((select applicant_message from public.applications where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4')), null, 'approving clears any rejection message');
+select throws_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a2', 'approved') $$, '22023', 'Application is already approved', 'the same decision cannot be made twice');
+select throws_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a2', 'pending') $$, '22023', 'Application is approved and cannot become pending', 'a decision cannot send an application back to pending');
+select throws_ok($$ update public.applications set status = 'rejected' where id = '60000000-0000-0000-0000-0000000000a2' $$, '42501', null, 'decisions cannot be written directly, even by admins');
 
 select results_eq('select internal_note from public.application_notes order by internal_note', $$ values ('References did not reply.'), ('Second interview booked.') $$, 'admin reads their org''s notes only');
 select results_eq($$ insert into public.application_notes (application_id, internal_note) values ('60000000-0000-0000-0000-0000000000a1', 'Great with kids.') returning updated_by $$,
@@ -300,7 +302,7 @@ select lives_ok($$ insert into public.events (organization_id, title, starts_at,
 select throws_ok($$ insert into public.events (organization_id, title, starts_at, ends_at) values ('10000000-0000-0000-0000-00000000000b', 'x', now(), now() + interval '1 hour') $$, '42501', null, 'admin cannot create an org B event');
 select is_empty($$ update public.events set title = 'x' where id = '40000000-0000-0000-0000-0000000000b1' returning id $$, 'admin cannot edit an org B event');
 select is_empty($$ delete from public.events where id = '40000000-0000-0000-0000-0000000000b1' returning id $$, 'admin cannot delete an org B event');
-select is_empty($$ update public.applications set status = 'rejected' where id = '60000000-0000-0000-0000-0000000000b1' returning id $$, 'admin cannot review an org B application');
+select throws_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000b1', 'rejected') $$, '42501', 'Application not found in your organization', 'admin cannot review an org B application');
 select is_empty($$ update public.volunteers set phone = '000' where id = '30000000-0000-0000-0000-0000000000b1' returning id $$, 'admin cannot edit an org B volunteer');
 select is_empty($$ update public.users set first_name = 'x' where id = '20000000-0000-0000-0000-0000000000b1' returning id $$, 'admin cannot edit an org B user');
 select throws_ok($$ insert into public.registrations (event_id, volunteer_id) values ('40000000-0000-0000-0000-0000000000a1', '30000000-0000-0000-0000-0000000000b1') $$, '42501', null, 'admin cannot register an org B volunteer');
@@ -322,17 +324,19 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a5", "role": "authenticated"}';
 select set_eq('select user_id from public.volunteers', $$ values ('20000000-0000-0000-0000-0000000000a1'::uuid), ('20000000-0000-0000-0000-0000000000a2'),
   ('20000000-0000-0000-0000-0000000000a3'), ('20000000-0000-0000-0000-0000000000a4') $$, 'manager sees every org A volunteer');
-select results_eq($$ update public.applications set status = 'rejected', applicant_message = 'No availability'
-  where volunteer_id = '30000000-0000-0000-0000-0000000000a3' and status = 'pending' returning reviewed_by, applicant_message $$,
+select results_eq($$ select reviewed_by, applicant_message from public.decide_application(
+  (select id from public.applications where volunteer_id = '30000000-0000-0000-0000-0000000000a3' and status = 'pending'), 'rejected', 'No availability') $$,
   $$ values ('20000000-0000-0000-0000-0000000000a5'::uuid, 'No availability') $$, 'manager can review applications; a written message replaces the default');
 select is_empty('select * from public.application_notes', 'managers cannot read internal notes');
+select throws_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a1', 'rejected', null, 'x') $$, '42501', 'Only admins can write internal notes', 'managers cannot add an internal note to a decision');
 select throws_ok($$ insert into public.application_notes (application_id, internal_note) select id, 'x' from public.applications where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4') $$,
   '42501', null, 'managers cannot write internal notes');
 select lives_ok($$ insert into public.events (organization_id, title, starts_at, ends_at) values ('10000000-0000-0000-0000-00000000000a', 'Manager event', now(), now() + interval '1 hour') $$, 'manager can create events');
 select throws_ok($$ select public.set_user_role('20000000-0000-0000-0000-0000000000a1', 'admin') $$, '42501', 'Only admins can change roles', 'manager cannot change roles');
 select lives_ok($$ insert into public.volunteers (user_id) values ('20000000-0000-0000-0000-0000000000a5') $$, 'manager can also have a volunteer profile');
 select lives_ok($$ insert into public.applications (volunteer_id) select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a5' $$, 'manager can apply as a volunteer');
-select is_empty($$ update public.applications set status = 'approved' where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a5') returning id $$, 'staff cannot approve their own application');
+select throws_ok($$ select public.decide_application(id, 'approved') from public.applications where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a5') $$,
+  '42501', 'You cannot review your own application', 'staff cannot approve their own application');
 select is_empty($$ update public.organizations set name = 'x' returning id $$, 'manager cannot edit org settings');
 select is_empty($$ update public.users set first_name = 'x' where id = '20000000-0000-0000-0000-0000000000a0' returning id $$, 'manager cannot rename an admin');
 select is_empty($$ update public.users set first_name = 'x' where id = '20000000-0000-0000-0000-0000000000a1' returning id $$, 'manager cannot rename a volunteer');
@@ -362,10 +366,15 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a0", "role": "authenticated"}';
 select lives_ok($$ update public.events set status = 'cancelled' where id = '40000000-0000-0000-0000-0000000000a1' $$, 'admin can cancel an event');
-select lives_ok($$ update public.applications set status = 'rejected' where id = '60000000-0000-0000-0000-0000000000a2' $$, 'admin can revoke an approval');
+select lives_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a2', 'rejected', null, 'Missed two shifts.') $$, 'admin can revoke an approval');
+select results_eq($$ select internal_note, updated_by from public.application_notes where application_id = '60000000-0000-0000-0000-0000000000a2' $$,
+  $$ values ('Missed two shifts.', '20000000-0000-0000-0000-0000000000a0'::uuid) $$, 'the internal note is saved with the decision');
+select throws_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a2', 'approved') $$, '22023', 'Application is rejected and cannot become approved',
+  'a rejection is final; the volunteer reapplies');
 select is((select applicant_message from public.applications where id = '60000000-0000-0000-0000-0000000000a2'),
   'Thanks for applying. We are not able to take you on right now.', 'a rejection with no message gets the org default');
-select results_eq($$ update public.applications set status = 'rejected', applicant_message = '  ' where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4') returning applicant_message $$,
+select results_eq($$ select applicant_message from public.decide_application(
+  (select id from public.applications where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4')), 'rejected', '  ') $$,
   $$ values ('Thanks for applying. We are not able to take you on right now.') $$, 'a rejection with a blank message gets the org default');
 
 set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a1", "role": "authenticated"}';

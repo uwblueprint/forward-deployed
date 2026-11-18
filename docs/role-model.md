@@ -127,8 +127,23 @@ event repository contracts.
 ## Applications and volunteer status
 
 A volunteer submits an application (`public.applications`). Staff approve or
-reject it; the database records who reviewed it and when. `volunteers.status`
-always mirrors the latest application.
+reject it with one call, never on their own application:
+
+```ts
+await supabase.rpc("decide_application", {
+  target_application_id: applicationId,
+  decision: "rejected", // or "approved"
+  message: "Shown to the applicant", // optional
+  note: "Admin-only internal note", // optional, admins only
+})
+```
+
+A pending application can be approved or rejected, and an approval can be
+revoked by rejecting it. A rejection is final; the volunteer reapplies. Any
+other change, including making the same decision twice, fails with code 22023.
+The database records who decided and when, and the decision and note are saved
+together. Status can't be written directly. `volunteers.status` always mirrors
+the latest application.
 
 | Status | Volunteer can |
 | --- | --- |
@@ -216,6 +231,7 @@ rows until it's created.
 - Memberships are created at signup and change only through `set_user_role`, invitations, and server-side scripts.
 - `volunteers.organization_id` comes from the owner's membership, or is filled in when they join, and never changes after that.
 - `volunteers.status` changes only through applications.
+- `applications.status` and `applicant_message` change only through `decide_application`.
 - Only the volunteer records their consent; the database sets the time.
 - Only staff record attendance.
 - The database sets `applications.reviewed_by`, `reviewed_at`, and
