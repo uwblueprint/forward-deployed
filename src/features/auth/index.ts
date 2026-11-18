@@ -6,6 +6,7 @@
 
 export {
   requestPasswordReset,
+  resendVerificationEmail,
   signInWithEmail,
   signOut,
   signOutAction,
@@ -25,6 +26,7 @@ export {
   forgotPasswordSchema,
   loginSchema,
   registerSchema,
+  resendVerificationSchema,
   resetPasswordSchema,
   verifyResetCodeSchema,
 } from "./schemas";
@@ -32,6 +34,7 @@ export type {
   ForgotPasswordInput,
   LoginInput,
   RegisterInput,
+  ResendVerificationInput,
   ResetPasswordInput,
   VerifyResetCodeInput,
 } from "./schemas";
