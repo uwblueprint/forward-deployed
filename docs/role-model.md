@@ -138,6 +138,9 @@ await supabase.rpc("decide_application", {
 })
 ```
 
+Server code can call `approveOrRejectApplication` from `src/features/crm/api/`,
+which wraps this and returns typed errors.
+
 Staff can change a decision later, either way, for example to fix a mistake,
 but only on the volunteer's latest application. An application can't go back
 to pending, and making the same decision twice fails, both with code 22023.
