@@ -12,6 +12,10 @@ export type Membership = Pick<Tables<"memberships">, "organization_id" | "role">
 export type User = Tables<"users"> & { membership: Membership | null }
 
 export type Volunteer = Tables<"volunteers">
+/** A volunteer with their name and email from users; null if RLS hides the user row. */
+export type VolunteerWithUser = Volunteer & {
+  user: Pick<Tables<"users">, "first_name" | "last_name" | "email"> | null
+}
 /** An event row, plus registration_count (spots taken), a computed column. */
 export type Event = Tables<"events">
 
@@ -62,6 +66,8 @@ export interface EventRepository {
 export interface VolunteerRepository {
   /** Volunteers the signed-in user can see: their own profile, or their organization's for staff. */
   getAll(): Promise<Volunteer[]>
+  /** Same rows as getAll, each with the volunteer's name and email. */
+  getAllWithUser(): Promise<VolunteerWithUser[]>
   getById(id: string): Promise<Volunteer | null>
   create(input: VolunteerCreate): Promise<Volunteer>
   update(id: string, input: VolunteerUpdate): Promise<Volunteer>
