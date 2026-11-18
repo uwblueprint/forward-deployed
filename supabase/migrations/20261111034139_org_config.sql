@@ -8,9 +8,9 @@
 create function private.is_text_list(value jsonb) returns boolean
 language sql immutable set search_path = ''
 as $$
-  select value is null or (
+  select value is null or value = 'null'::jsonb or (
     jsonb_typeof(value) = 'array'
-    and not exists (select 1 from jsonb_array_elements(value) item where jsonb_typeof(item) <> 'string' or btrim(item #>> '{}') = '')
+    and not exists (select 1 from jsonb_array_elements(value) item where jsonb_typeof(item) <> 'string' or item #>> '{}' !~ '\S')
   )
 $$;
 
@@ -25,10 +25,10 @@ alter table public.organizations
 
 -- Select and multiselect questions need their options; other types have none.
 alter table public.custom_fields
-  add constraint custom_fields_field_name_check check (btrim(field_name) <> ''),
+  add constraint custom_fields_field_name_check check (field_name ~ '\S'),
   add constraint custom_fields_options_check check (
     case when field_type in ('select', 'multiselect')
-      then jsonb_array_length(options) > 0 and private.is_text_list(options)
+      then jsonb_typeof(options) = 'array' and options <> '[]'::jsonb and private.is_text_list(options)
       else options = '[]'::jsonb
     end
   );
@@ -42,6 +42,7 @@ alter table public.custom_fields
 alter table public.applications add column questions jsonb not null default '[]';
 alter table public.registrations add column questions jsonb not null default '[]';
 
+-- Dates are calendar dates, YYYY-MM-DD, like a date input sends.
 create function private.answer_matches_type(field public.custom_fields, value jsonb) returns boolean
 language plpgsql stable set search_path = ''
 as $$
@@ -54,47 +55,63 @@ begin
     when 'multiselect' then return jsonb_typeof(value) = 'array' and field.options @> value
       and not exists (select 1 from jsonb_array_elements(value) item where jsonb_typeof(item) <> 'string');
     when 'date' then
-      if jsonb_typeof(value) <> 'string' then
+      if jsonb_typeof(value) <> 'string' or value #>> '{}' !~ '^\d{4}-\d{2}-\d{2}$' then
         return false;
       end if;
-      perform (value #>> '{}')::timestamptz;
+      begin
+        perform (value #>> '{}')::date;
+      exception when others then
+        return false; -- e.g. 2026-02-30
+      end;
       return true;
     else return false;
   end case;
-exception when others then
-  return false;
 end;
 $$;
 
 -- Same rules as validateCustomFieldAnswers in src/lib/customFieldAnswers.ts:
 -- every required question has an answer, every answer matches its question's
 -- type, and answers to questions the organization didn't ask are dropped.
+-- A new row is checked against the organization's current questions, which
+-- are saved in `questions`. Edits are checked against the saved questions, so
+-- changing or deleting a question later never touches existing answers.
+-- Runs as the caller (not security definer), so it only reads questions the
+-- caller can already see and can't reveal another organization's.
 create function private.check_answers() returns trigger
-language plpgsql security definer set search_path = ''
+language plpgsql set search_path = ''
 as $$
 declare
   is_application boolean := tg_table_name = 'applications';
   answers jsonb := to_jsonb(new) -> (case when is_application then 'responses' else 'custom_responses' end);
+  asked jsonb;
   org uuid;
   field public.custom_fields;
   value jsonb;
   kept jsonb := '{}';
 begin
-  if is_application then
-    select organization_id into org from public.volunteers where id = (to_jsonb(new) ->> 'volunteer_id')::uuid;
-  else
-    select organization_id into org from public.events where id = (to_jsonb(new) ->> 'event_id')::uuid;
-  end if;
   if jsonb_typeof(answers) <> 'object' then
     raise exception 'Answers must be an object keyed by question id' using errcode = '22023';
   end if;
-  new.questions := '[]';
 
-  for field in
-    select * from public.custom_fields
-    where organization_id = org and entity_type = case when is_application then 'application' else 'registration' end
-    order by position, id
-  loop
+  -- Rows saved before snapshots existed have none; they use the current questions.
+  if tg_op = 'UPDATE' and old.questions <> '[]'::jsonb then
+    asked := old.questions;
+  else
+    if is_application then
+      select organization_id into org from public.volunteers where id = (to_jsonb(new) ->> 'volunteer_id')::uuid;
+    else
+      select organization_id into org from public.events where id = (to_jsonb(new) ->> 'event_id')::uuid;
+    end if;
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'id', id, 'field_name', field_name, 'field_type', field_type, 'options', options, 'required', required
+      ) order by position, id), '[]')
+    into asked
+    from public.custom_fields
+    where organization_id = org and entity_type = case when is_application then 'application' else 'registration' end;
+  end if;
+  new.questions := asked;
+
+  for field in select * from jsonb_populate_recordset(null::public.custom_fields, asked) loop
     value := answers -> field.id::text;
     if value is null or value = 'null' or value = '""' or value = '[]' then
       if field.required then
@@ -105,10 +122,6 @@ begin
     else
       kept := kept || jsonb_build_object(field.id::text, value);
     end if;
-    new.questions := new.questions || jsonb_build_object(
-      'id', field.id, 'field_name', field.field_name, 'field_type', field.field_type,
-      'options', field.options, 'required', field.required
-    );
   end loop;
 
   if is_application then

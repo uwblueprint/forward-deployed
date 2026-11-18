@@ -261,7 +261,7 @@ isOneToOne: false
             }[]
                            },
 "decide_application":
-{ Args: { "decision": Database["public"]['Enums']["volunteer_status"],"message"?: string,"note"?: string,"target_application_id": string }; Returns: {
+{ Args: { "decision": Database["public"]['Enums']["volunteer_status"],"expected_status"?: Database["public"]['Enums']["volunteer_status"],"message"?: string,"note"?: string,"target_application_id": string }; Returns: {
               "applicant_message": string | null,
 "created_at": string,
 "id": string,

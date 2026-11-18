@@ -134,16 +134,27 @@ await supabase.rpc("decide_application", {
   target_application_id: applicationId,
   decision: "rejected", // or "approved"
   message: "Shown to the applicant", // optional
-  note: "Admin-only internal note", // optional, admins only
+  note: "Admin-only internal note", // optional, admins only; replaces any earlier note
+  expected_status: "pending", // optional; the status the reviewer saw
 })
 ```
 
 Server code can call `approveOrRejectApplication` from `src/features/crm/api/`,
 which wraps this and returns typed errors.
 
-Staff can change a decision later, either way, for example to fix a mistake,
-but only on the volunteer's latest application. An application can't go back
-to pending, and making the same decision twice fails, both with code 22023.
+A decision only applies if the application still has the status the reviewer
+saw, pending by default, so nobody overturns a decision they haven't seen. To
+change a decision, for example to fix a mistake, pass the current status as
+`expected_status`. Only the volunteer's latest application can be decided, and
+nothing goes back to pending.
+
+| Code | Meaning |
+| --- | --- |
+| 42501 | Not staff in that organization, or their own application |
+| P0002 | No such application in the caller's organization |
+| 55000 | The volunteer has applied again since |
+| 22023 | Already decided, or no longer in the expected status |
+
 The database records who decided and when, and the decision and note are saved
 together. Status can't be written directly. `volunteers.status` always mirrors
 the latest application.
@@ -174,14 +185,16 @@ registrations: `text`, `textarea`, `number`, `date`, `select`, `multiselect`, or
 options; the other types have none.
 
 Answers go in `applications.responses` and `registrations.custom_responses`,
-keyed by question id. The database applies the same rules as
+an object keyed by question id. The database applies the same rules as
 `validateCustomFieldAnswers` in `src/lib/customFieldAnswers.ts`: every required
 question has an answer, every answer matches its question's type (a select
-answer is one of its options), and answers to questions the organization didn't
-ask are dropped. A bad answer fails with `<question> is required` or
-`<question> has an invalid value` (code 22023). Each row also keeps `questions`,
-a snapshot of the questions as they were asked, so renaming or deleting a
-question later doesn't change what an old answer meant.
+answer is one of its options, a date is `YYYY-MM-DD`), and answers to questions
+the organization didn't ask are dropped. A bad answer fails with
+`<question> is required` or `<question> has an invalid value` (code 22023).
+
+Each row also keeps `questions`, a snapshot of the questions as they were
+asked. Edits to answers are checked against that snapshot, so renaming,
+changing, or deleting a question later never changes or drops an old answer.
 
 Each organization types its own event categories and skill options into
 `organizations.settings` as `event_categories` and `skills`: lists of free text,
