@@ -1,5 +1,7 @@
 "use server"
 
+import { getEventRegistrations } from "./eventRegistrations"
+import type { EventRegistration, EventRegistrationsFilter, EventRegistrationsResult } from "./eventRegistrations"
 import { cancelRegistration, registerForEvent } from "./registrations"
 import type { EventCancellationResult, EventRegistrationResult } from "./registrations"
 
@@ -18,4 +20,11 @@ export async function cancelRegistrationAction(
   registrationId: string
 ): Promise<EventCancellationResult<{ id: string }>> {
   return cancelRegistration(registrationId)
+}
+
+export async function getEventRegistrationsAction(
+  eventId: string,
+  filter: EventRegistrationsFilter = {}
+): Promise<EventRegistrationsResult<EventRegistration[]>> {
+  return getEventRegistrations(eventId, filter)
 }
