@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   requestPasswordReset,
+  resendVerificationEmail,
   signInWithEmail,
   signOut,
   signUpWithEmail,
@@ -101,6 +102,33 @@ export async function requestPasswordResetAction(
   return {
     status: "success",
     message: "If an account exists for that email, we've sent a code.",
+  };
+}
+
+export async function resendVerificationEmailAction(
+  _prevState: ResetFlowActionState,
+  formData: FormData,
+): Promise<ResetFlowActionState> {
+  const headersList = await headers();
+  const origin = resolveOrigin(headersList);
+
+  const result = await resendVerificationEmail(
+    { email: String(formData.get("email") ?? "") },
+    origin
+      ? { emailRedirectTo: `${origin}/auth/callback?next=/dashboard` }
+      : undefined,
+  );
+
+  if (!result.ok) {
+    return result.error.type === "validation"
+      ? { status: "error", fieldErrors: result.error.fieldErrors }
+      : { status: "error", message: result.error.message };
+  }
+
+  return {
+    status: "success",
+    message:
+      "If an account exists and needs verification, we've sent a new confirmation email.",
   };
 }
 
