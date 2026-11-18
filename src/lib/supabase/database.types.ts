@@ -280,6 +280,26 @@ isOneToOne: false
         isOneToOne: true
         isSetofReturn: false
       } },
+"edit_applicant_message":
+{ Args: { "message": string,"target_application_id": string }; Returns: {
+              "applicant_message": string | null,
+"created_at": string,
+"id": string,
+"questions": NonNullable<Json>,
+"responses": NonNullable<Json>,
+"reviewed_at": string | null,
+"reviewed_by": string | null,
+"status": Database["public"]['Enums']["volunteer_status"],
+"submitted_at": string,
+"updated_at": string,
+"volunteer_id": string
+            }
+                          SetofOptions: {
+        from: "*"
+        to: "applications"
+        isOneToOne: true
+        isSetofReturn: false
+      } },
 "redeem_invitation":
 { Args: { "invitation_token": string }; Returns: string
                            },

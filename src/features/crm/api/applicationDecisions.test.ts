@@ -12,7 +12,7 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }))
 
-import { approveOrRejectApplication } from "./applicationDecisions"
+import { approveOrRejectApplication, editApplicantMessage } from "./applicationDecisions"
 
 const APPLICATION_ID = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b"
 
@@ -150,5 +150,62 @@ describe("approveOrRejectApplication", () => {
     const result = await approveOrRejectApplication(APPLICATION_ID, "rejected", "x".repeat(2001))
 
     expect(result).toMatchObject({ ok: false, error: { type: "validation", fieldErrors: { applicantMessage: expect.any(Array) } } })
+  })
+})
+
+describe("editApplicantMessage", () => {
+  it("saves the new message and returns what was stored", async () => {
+    signedIn()
+    mockRpc.mockResolvedValue({ data: { id: APPLICATION_ID, applicant_message: "Try again in spring" }, error: null })
+
+    await expect(editApplicantMessage(APPLICATION_ID, "Try again in spring")).resolves.toEqual({
+      ok: true,
+      data: { applicantMessage: "Try again in spring" },
+    })
+    expect(mockRpc).toHaveBeenCalledWith("edit_applicant_message", {
+      target_application_id: APPLICATION_ID,
+      message: "Try again in spring",
+    })
+  })
+
+  it("returns the organization's default when the message is left blank", async () => {
+    signedIn()
+    mockRpc.mockResolvedValue({ data: { id: APPLICATION_ID, applicant_message: "Org default" }, error: null })
+
+    await expect(editApplicantMessage(APPLICATION_ID, "")).resolves.toEqual({
+      ok: true,
+      data: { applicantMessage: "Org default" },
+    })
+  })
+
+  it.each([
+    ["42501", "not-allowed"],
+    ["P0002", "not-found"],
+    ["22023", "not-rejected"],
+  ])("maps %s to %s", async (code, type) => {
+    signedIn()
+    fails(code, "x")
+
+    await expect(editApplicantMessage(APPLICATION_ID, "x")).resolves.toEqual({ ok: false, error: { type } })
+  })
+
+  it("returns unauthenticated without a session", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+
+    await expect(editApplicantMessage(APPLICATION_ID, "x")).resolves.toEqual({
+      ok: false,
+      error: { type: "unauthenticated" },
+    })
+    expect(mockRpc).not.toHaveBeenCalled()
+  })
+
+  it("rejects bad input before touching the database", async () => {
+    const result = await editApplicantMessage("not-an-id", "x".repeat(2001))
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { type: "validation", fieldErrors: { applicationId: expect.any(Array), applicantMessage: expect.any(Array) } },
+    })
+    expect(mockGetUser).not.toHaveBeenCalled()
   })
 })

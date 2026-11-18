@@ -95,3 +95,63 @@ export async function approveOrRejectApplication(
 
   return { ok: true, data: { status: parsed.data.decision } }
 }
+
+export type ApplicantMessageError =
+  | { type: "validation"; fieldErrors: Record<string, string[]> }
+  | { type: "unauthenticated" }
+  | { type: "not-allowed" }
+  | { type: "not-found" }
+  | { type: "not-rejected" }
+  | { type: "backend"; message: string }
+
+export type ApplicantMessageResult =
+  | { ok: true; data: { applicantMessage: string | null } }
+  | { ok: false; error: ApplicantMessageError }
+
+const messageSchema = z.object({
+  applicationId: z.guid(),
+  applicantMessage: z.string().max(2000),
+})
+
+// SQLSTATEs public.edit_applicant_message raises (same migration).
+const MESSAGE_ERROR_TYPES: Partial<Record<string, "not-allowed" | "not-found" | "not-rejected">> = {
+  "42501": "not-allowed",
+  P0002: "not-found",
+  "22023": "not-rejected",
+}
+
+/**
+ * Fixes the message on a rejected application without deciding it again.
+ * Same rules as approveOrRejectApplication for who can do it. A blank message
+ * uses the organization's default; the saved message is returned.
+ */
+export async function editApplicantMessage(
+  applicationId: string,
+  applicantMessage: string
+): Promise<ApplicantMessageResult> {
+  const parsed = messageSchema.safeParse({ applicationId, applicantMessage })
+  if (!parsed.success) {
+    return { ok: false, error: { type: "validation", fieldErrors: z.flattenError(parsed.error).fieldErrors } }
+  }
+
+  const supabase = await createServerSupabaseClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { ok: false, error: { type: "unauthenticated" } }
+  }
+
+  const { data, error } = await supabase.rpc("edit_applicant_message", {
+    target_application_id: parsed.data.applicationId,
+    message: parsed.data.applicantMessage,
+  })
+
+  if (error) {
+    const type = MESSAGE_ERROR_TYPES[error.code]
+    return { ok: false, error: type ? { type } : { type: "backend", message: error.message } }
+  }
+
+  return { ok: true, data: { applicantMessage: data.applicant_message } }
+}

@@ -81,3 +81,39 @@ $$;
 
 revoke execute on function public.decide_application(uuid, public.volunteer_status, text, text, public.volunteer_status) from public, anon;
 grant execute on function public.decide_application(uuid, public.volunteer_status, text, text, public.volunteer_status) to authenticated;
+
+-- Fixing the message on a rejection without deciding again. A blank message
+-- uses the organization's default. Same access rules as decide_application.
+-- Usage: supabase.rpc("edit_applicant_message", { target_application_id, message })
+-- Errors: 42501 not allowed, P0002 not found, 22023 not rejected.
+create function public.edit_applicant_message(target_application_id uuid, message text)
+returns public.applications
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  app public.applications;
+begin
+  if not coalesce((select private.is_staff()), false) then
+    raise exception 'Only staff can edit applicant messages' using errcode = '42501';
+  end if;
+
+  select * into app from public.applications
+  where id = target_application_id and volunteer_id in (select private.my_org_volunteer_ids())
+  for update;
+  if not found then
+    raise exception 'Application not found in your organization' using errcode = 'P0002';
+  end if;
+  if app.volunteer_id = (select private.current_volunteer_id()) then
+    raise exception 'You cannot review your own application' using errcode = '42501';
+  end if;
+  if app.status <> 'rejected' then
+    raise exception 'Only a rejected application has a message' using errcode = '22023';
+  end if;
+
+  update public.applications set applicant_message = message where id = app.id returning * into app;
+  return app;
+end;
+$$;
+
+revoke execute on function public.edit_applicant_message(uuid, text) from public, anon;
+grant execute on function public.edit_applicant_message(uuid, text) to authenticated;

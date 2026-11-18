@@ -168,7 +168,9 @@ the latest application.
 
 The applicant sees `applicant_message` as soon as it's saved. A rejection with
 a blank message gets the organization's `default_rejection_message`, which
-admins set. Approval clears the message.
+admins set. Approval clears the message. To fix a rejection's message without
+deciding again, staff call `supabase.rpc("edit_applicant_message", {
+target_application_id, message })`, or `editApplicantMessage` from server code.
 
 Answers to an organization's custom questions are covered in "Custom questions
 and settings" below.
@@ -247,7 +249,7 @@ rows until it's created.
 - Memberships are created at signup and change only through `set_user_role`, invitations, and server-side scripts.
 - `volunteers.organization_id` comes from the owner's membership, or is filled in when they join, and never changes after that.
 - `volunteers.status` changes only through applications.
-- `applications.status` and `applicant_message` change only through `decide_application`.
+- `applications.status` and `applicant_message` change only through `decide_application` and `edit_applicant_message`.
 - Only the volunteer records their consent; the database sets the time.
 - Only staff record attendance.
 - The database sets `applications.reviewed_by`, `reviewed_at`, and
