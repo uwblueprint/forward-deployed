@@ -219,12 +219,34 @@ import { eventRepo } from "@/lib/adapters"
 const events = await eventRepo.getAll()
 ```
 
+## Auth emails
+
+In the Supabase dashboard, under Authentication:
+
+| Setting | Value |
+| --- | --- |
+| Site URL | `https://forward-deployed.vercel.app` |
+| Redirect URLs | `http://localhost:3000/**`, `https://forward-deployed.vercel.app/**`, `https://forward-deployed-*-forward-deployed.vercel.app/**` |
+| Confirm signup template link | `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard` |
+| Reset password template | Show the code with `{{ .Token }}` instead of a link |
+
+Until the confirm signup template is changed from its default, those emails
+still work, but only through `/auth/callback`, and only in the browser the
+user signed up in.
+
+Local Supabase uses the templates in `supabase/templates/`, configured in
+`supabase/config.toml`. Template changes need `npx supabase stop` then
+`npx supabase start` to take effect. Local emails don't actually get sent —
+they appear at <http://127.0.0.1:54324>. Local signup confirmation is off
+(`enable_confirmations = false`), so only the reset flow can be tested
+locally; signup confirmation is tested against a hosted project.
+
 ## Installed UI primitives
 
 `accordion`, `alert`, `aspect-ratio`, `badge`, `button`, `card`, `checkbox`,
 `collapsible`, `command`, `dialog`, `dropdown-menu`, `hover-card`, `input`,
 `input-group`, `label`, `navigation-menu`, `popover`, `scroll-area`, `select`,
-`table`, `tabs`, `textarea`, `tooltip`. All are exported from
+`skeleton`, `table`, `tabs`, `textarea`, `tooltip`. All are exported from
 `src/components/ui/index.ts`.
 
 `tooltip` needs a `TooltipProvider` ancestor before use.
