@@ -243,6 +243,21 @@ they appear at <http://127.0.0.1:54324>. Local signup confirmation is off
 (`enable_confirmations = false`), so only the reset flow can be tested
 locally; signup confirmation is tested against a hosted project.
 
+## Google sign-in
+
+In the Supabase dashboard, under Authentication > Providers:
+
+| Setting | Value |
+| --- | --- |
+| Google provider | Enabled |
+| Client ID | From the Google Cloud OAuth client; entered in the dashboard, never in code |
+| Client Secret | From the Google Cloud OAuth client; entered in the dashboard, never in code |
+
+In Google Cloud Console, add `https://<project-ref>.supabase.co/auth/v1/callback`
+as an authorized redirect URI on the OAuth client.
+
+Not configured for local Supabase; test against a hosted project.
+
 ## Installed UI primitives
 
 `accordion`, `alert`, `aspect-ratio`, `badge`, `button`, `card`, `checkbox`,
