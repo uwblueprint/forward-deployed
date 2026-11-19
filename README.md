@@ -228,9 +228,20 @@ In the Supabase dashboard, under Authentication:
 | Setting | Value |
 | --- | --- |
 | Site URL | `https://forward-deployed.vercel.app` |
-| Redirect URLs | `http://localhost:3000/**`, `https://forward-deployed.vercel.app/**`, `https://forward-deployed-*-forward-deployed.vercel.app/**` |
+| Redirect URLs | `http://localhost:3000/auth/callback**`, `https://forward-deployed.vercel.app/auth/callback**`, `https://forward-deployed-*-forward-deployed.vercel.app/auth/callback**` |
 | Confirm signup template link | `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard` |
 | Reset password template | Show the code with `{{ .Token }}` instead of a link |
+
+Redirect URLs are limited to `/auth/callback` because that's the only path
+the app passes as a redirect. `/auth/confirm` is reached through the email
+template's `{{ .SiteURL }}`, not `redirect_to`, so it isn't affected. If a
+new flow redirects elsewhere, add its path here.
+
+The preview entry matches Vercel's per-deployment preview domains.
+`src/lib/allowed-origin.ts` checks the same origins in code before any
+redirect URL is built, since `Origin`/`Host` headers can be spoofed. If the
+Vercel project or team name changes, update both the dashboard Redirect
+URLs and `allowed-origin.ts`.
 
 Until the confirm signup template is changed from its default, those emails
 still work, but only through `/auth/callback`, and only in the browser the
@@ -242,6 +253,19 @@ Local Supabase uses the templates in `supabase/templates/`, configured in
 they appear at <http://127.0.0.1:54324>. Local signup confirmation is off
 (`enable_confirmations = false`), so only the reset flow can be tested
 locally; signup confirmation is tested against a hosted project.
+
+### Site URL / Redirect URLs by environment
+
+| Environment | Site URL | Redirect URLs | Configured in |
+| --- | --- | --- | --- |
+| Local | `http://127.0.0.1:3000` | `http://127.0.0.1:3000/auth/callback**`, `http://localhost:3000/auth/callback**` | `supabase/config.toml` (`[auth]`), this repo |
+| Production | `https://forward-deployed.vercel.app` | `https://forward-deployed.vercel.app/auth/callback**` | Supabase dashboard, owner-applied |
+| Preview (any PR) | n/a — previews share the production project's Site URL | `https://forward-deployed-*-forward-deployed.vercel.app/auth/callback**` | Supabase dashboard, owner-applied |
+
+Local and hosted are separate Supabase projects with independently
+configured auth settings — the local one only needs to know about
+localhost, since it's never reachable from a preview or production
+deployment.
 
 ## Installed UI primitives
 
