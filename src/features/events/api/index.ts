@@ -1,12 +1,19 @@
 export {
   cancelRegistrationAction,
   changeEventStatusAction,
+  getEventRegistrationsAction,
   getEventsAction,
   getMyEventsAction,
   getOpportunitiesAction,
   registerForEventAction,
 } from "./actions"
 export type { EventTransitionError, EventTransitionResult } from "./eventLifecycle"
+export type {
+  EventRegistration,
+  EventRegistrationsError,
+  EventRegistrationsFilter,
+  EventRegistrationsResult,
+} from "./eventRegistrations"
 export type {
   EventQueryError,
   EventQueryResult,
