@@ -1,20 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getUserRole, signInWithEmail, signUpWithEmail, RedirectError } =
-  vi.hoisted(() => {
-    class RedirectError extends Error {
-      constructor(public readonly url: string) {
-        super(`redirect:${url}`);
-      }
+const {
+  getUserRole,
+  signInWithEmail,
+  signUpWithEmail,
+  resendVerificationEmail,
+  RedirectError,
+} = vi.hoisted(() => {
+  class RedirectError extends Error {
+    constructor(public readonly url: string) {
+      super(`redirect:${url}`);
     }
+  }
 
-    return {
-      getUserRole: vi.fn(),
-      signInWithEmail: vi.fn(),
-      signUpWithEmail: vi.fn(),
-      RedirectError,
-    };
-  });
+  return {
+    getUserRole: vi.fn(),
+    signInWithEmail: vi.fn(),
+    signUpWithEmail: vi.fn(),
+    resendVerificationEmail: vi.fn(),
+    RedirectError,
+  };
+});
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(async () => ({})),
@@ -23,6 +29,7 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("./auth", () => ({
   signInWithEmail,
   signUpWithEmail,
+  resendVerificationEmail,
 }));
 
 vi.mock("./requireRole", () => ({
@@ -44,7 +51,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import { redirect } from "next/navigation";
-import { signInAction, signUpAction } from "./actions";
+import { resendVerificationEmailAction, signInAction, signUpAction } from "./actions";
 
 function makeFormData(fields: Record<string, string>): FormData {
   const formData = new FormData();
@@ -387,5 +394,106 @@ describe("signUpAction", () => {
       message: "Check your email to confirm your account.",
     });
     expect(redirect).not.toHaveBeenCalled();
+  });
+});
+
+describe("resendVerificationEmailAction", () => {
+  it("returns field errors on validation failure", async () => {
+    resendVerificationEmail.mockResolvedValue({
+      ok: false,
+      error: {
+        type: "validation",
+        fieldErrors: { email: ["Enter a valid email address."] },
+      },
+    });
+
+    const result = await resendVerificationEmailAction(
+      { status: "idle" },
+      makeFormData({ email: "not-an-email" }),
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      fieldErrors: { email: ["Enter a valid email address."] },
+    });
+  });
+
+  it("returns the generic success message on a true success", async () => {
+    resendVerificationEmail.mockResolvedValue({ ok: true, data: null });
+
+    const result = await resendVerificationEmailAction(
+      { status: "idle" },
+      makeFormData({ email: "person@example.com" }),
+    );
+
+    expect(result).toEqual({
+      status: "success",
+      message:
+        "If an account exists and needs verification, we've sent a new confirmation email.",
+    });
+  });
+
+  it("returns the same generic success message when the call suppressed an error", async () => {
+    resendVerificationEmail.mockResolvedValue({ ok: true, data: null });
+
+    const result = await resendVerificationEmailAction(
+      { status: "idle" },
+      makeFormData({ email: "unknown@example.com" }),
+    );
+
+    expect(result).toEqual({
+      status: "success",
+      message:
+        "If an account exists and needs verification, we've sent a new confirmation email.",
+    });
+  });
+
+  it("returns the backend message on a rate-limit error", async () => {
+    resendVerificationEmail.mockResolvedValue({
+      ok: false,
+      error: { type: "backend", message: "Email rate limit exceeded" },
+    });
+
+    const result = await resendVerificationEmailAction(
+      { status: "idle" },
+      makeFormData({ email: "person@example.com" }),
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Email rate limit exceeded",
+    });
+  });
+
+  it("builds emailRedirectTo from the origin header", async () => {
+    mockHeaders.set("origin", "https://forward-deployed.vercel.app");
+    resendVerificationEmail.mockResolvedValue({ ok: true, data: null });
+
+    await resendVerificationEmailAction(
+      { status: "idle" },
+      makeFormData({ email: "person@example.com" }),
+    );
+
+    expect(resendVerificationEmail).toHaveBeenCalledWith(
+      { email: "person@example.com" },
+      {
+        emailRedirectTo:
+          "https://forward-deployed.vercel.app/auth/callback?next=/dashboard",
+      },
+    );
+  });
+
+  it("omits emailRedirectTo when no origin or host can be determined", async () => {
+    resendVerificationEmail.mockResolvedValue({ ok: true, data: null });
+
+    await resendVerificationEmailAction(
+      { status: "idle" },
+      makeFormData({ email: "person@example.com" }),
+    );
+
+    expect(resendVerificationEmail).toHaveBeenCalledWith(
+      { email: "person@example.com" },
+      undefined,
+    );
   });
 });

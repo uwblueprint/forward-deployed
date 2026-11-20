@@ -1,6 +1,7 @@
 export { signOutAction } from "./actions";
 export {
   requestPasswordReset,
+  resendVerificationEmail,
   signInWithEmail,
   signOut,
   signUpWithEmail,
