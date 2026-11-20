@@ -163,7 +163,9 @@ The project runs in single-organization mode, so the seed makes one
 organization with 12 users (an admin, a manager, and 10 volunteers) and 10
 volunteers, applications, events, registrations, and invitations. One event is
 full, one has registration closed, and the invitations are open, expired, or
-revoked. The audit log fills in from the changes. All logins use
+revoked. The organization gets example event categories and skill options, and a
+placeholder rejection message until the real wording is approved. The audit log
+fills in from the changes. All logins use
 `SEED_USER_PASSWORD`. Re-running replaces only the seed's own rows, including
 those from older seeds; the audit log keeps the old history. It stops if the
 project has another organization.

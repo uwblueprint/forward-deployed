@@ -192,6 +192,22 @@ describe("registerForEvent", () => {
       error: { type: "not-eligible" },
     })
   })
+
+  it("maps the database's answer check to a validation error", async () => {
+    mockGetUser.mockResolvedValue({ data: { user } })
+    mockVolunteerMaybeSingle.mockResolvedValue({ data: { id: "volunteer-1" }, error: null })
+    mockEventMaybeSingle.mockResolvedValue({ data: { organization_id: "org-1" }, error: null })
+    mockExistingMaybeSingle.mockResolvedValue({ data: null, error: null })
+    mockInsertSingle.mockResolvedValue({
+      data: null,
+      error: { code: "22023", message: "Shirt size is required" },
+    })
+
+    await expect(registerForEvent("event-1")).resolves.toEqual({
+      ok: false,
+      error: { type: "validation", fieldErrors: { answers: ["Shirt size is required"] } },
+    })
+  })
 })
 
 describe("cancelRegistration", () => {

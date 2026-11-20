@@ -57,6 +57,10 @@ describe("validateCustomFieldAnswers", () => {
     ["checkbox", "true", false],
     ["date", "2026-06-01", true],
     ["date", "not-a-date", false],
+    ["date", "2026-02-30", false],
+    ["date", "2027", false],
+    ["date", "Jan 5 2027", false],
+    ["date", "2026-06-01T10:00:00Z", false],
   ] as const)("validates %s field type for value %j", (fieldType, value, expected) => {
     const result = validateCustomFieldAnswers([field({ id: "f1", field_type: fieldType })], { f1: value })
 
