@@ -267,6 +267,21 @@ configured auth settings — the local one only needs to know about
 localhost, since it's never reachable from a preview or production
 deployment.
 
+## Google sign-in
+
+In the Supabase dashboard, under Authentication > Providers:
+
+| Setting | Value |
+| --- | --- |
+| Google provider | Enabled |
+| Client ID | From the Google Cloud OAuth client; entered in the dashboard, never in code |
+| Client Secret | From the Google Cloud OAuth client; entered in the dashboard, never in code |
+
+In Google Cloud Console, add `https://<project-ref>.supabase.co/auth/v1/callback`
+as an authorized redirect URI on the OAuth client.
+
+Not configured for local Supabase; test against a hosted project.
+
 ## Installed UI primitives
 
 `accordion`, `alert`, `aspect-ratio`, `badge`, `button`, `card`, `checkbox`,
