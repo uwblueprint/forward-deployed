@@ -30,6 +30,16 @@ describe("SupabaseVolunteerRepository", () => {
     expect(calls).toEqual([["from", ["volunteers"]], ["select", []], ["eq", ["id", "v1"]], ["maybeSingle", []]])
   })
 
+  it("embeds each volunteer's user as `user`", async () => {
+    const { factory, calls } = fakeClient({ data: [], error: null })
+    await new SupabaseVolunteerRepository(factory).getAllWithUser()
+    expect(calls).toEqual([
+      ["from", ["volunteers"]],
+      ["select", ["*, user:users(first_name, last_name, email)"]],
+      ["order", ["created_at"]],
+    ])
+  })
+
   it("throws the database error", async () => {
     const error = new Error("permission denied")
     const { factory } = fakeClient({ data: null, error })

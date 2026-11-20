@@ -54,7 +54,7 @@ select results_eq($$ select actor_id, old_value, new_value from public.audit_log
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a0", "role": "authenticated"}';
-select lives_ok($$ update public.applications set status = 'approved' where id = '60000000-0000-0000-0000-0000000000a1' $$, 'admin approves an application');
+select lives_ok($$ select public.decide_application('60000000-0000-0000-0000-0000000000a1', 'approved') $$, 'admin approves an application');
 select results_eq($$ select actor_id, old_value, new_value from public.audit_log where entity_id = '60000000-0000-0000-0000-0000000000a1' $$,
   $$ values ('20000000-0000-0000-0000-0000000000a0'::uuid, 'pending', 'approved') $$, 'application decisions are recorded with who made them');
 select lives_ok($$ select public.set_user_role('20000000-0000-0000-0000-0000000000a2', 'manager') $$, 'admin changes a role');

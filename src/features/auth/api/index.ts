@@ -1,5 +1,13 @@
 export { signOutAction } from "./actions";
-export { signInWithEmail, signOut, signUpWithEmail } from "./auth";
+export {
+  requestPasswordReset,
+  resendVerificationEmail,
+  signInWithEmail,
+  signOut,
+  signUpWithEmail,
+  updatePassword,
+  verifyResetCode,
+} from "./auth";
 export type { AuthError, AuthResult, AuthSessionData } from "./auth";
 export type { Role, RoleResolver } from "./requireRole";
 export { getUserRole, requireRole, requireRoleForRoute } from "./requireRole";
