@@ -1,11 +1,13 @@
 export {
   cancelRegistrationAction,
   changeEventStatusAction,
+  createEventAction,
   getEventRegistrationsAction,
   getEventsAction,
   getMyEventsAction,
   getOpportunitiesAction,
   registerForEventAction,
+  updateEventAction,
 } from "./actions"
 export type { EventTransitionError, EventTransitionResult } from "./eventLifecycle"
 export type {
@@ -23,4 +25,5 @@ export type {
   OpportunityFilters,
   StaffEventFilters,
 } from "./events"
+export type { EventMutationError, EventMutationResult } from "./manageEvents"
 export type { EventCancellationError, EventCancellationResult, EventRegistrationError, EventRegistrationResult } from "./registrations"
