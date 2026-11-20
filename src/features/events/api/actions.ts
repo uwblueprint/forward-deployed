@@ -2,8 +2,13 @@
 
 import type { Event } from "@/lib/adapters"
 
-import { getEventRegistrations } from "./eventRegistrations"
-import type { EventRegistration, EventRegistrationsFilter, EventRegistrationsResult } from "./eventRegistrations"
+import { getEventRegistrations, setAttendance } from "./eventRegistrations"
+import type {
+  AttendanceStatus,
+  EventRegistration,
+  EventRegistrationsFilter,
+  EventRegistrationsResult,
+} from "./eventRegistrations"
 import { createEvent, updateEvent } from "./manageEvents"
 import type { EventMutationResult } from "./manageEvents"
 import { cancelRegistration, registerForEvent } from "./registrations"
@@ -39,4 +44,11 @@ export async function getEventRegistrationsAction(
   filter: EventRegistrationsFilter = {}
 ): Promise<EventRegistrationsResult<EventRegistration[]>> {
   return getEventRegistrations(eventId, filter)
+}
+
+export async function setAttendanceAction(
+  registrationId: string,
+  attendance: AttendanceStatus
+): Promise<EventRegistrationsResult<EventRegistration>> {
+  return setAttendance(registrationId, attendance)
 }

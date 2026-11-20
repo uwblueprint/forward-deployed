@@ -3,9 +3,11 @@ export {
   createEventAction,
   getEventRegistrationsAction,
   registerForEventAction,
+  setAttendanceAction,
   updateEventAction,
 } from "./actions"
 export type {
+  AttendanceStatus,
   EventRegistration,
   EventRegistrationsError,
   EventRegistrationsFilter,
