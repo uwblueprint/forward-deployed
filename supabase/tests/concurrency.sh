@@ -68,6 +68,25 @@ wait "$joining" || fail "join: the membership insert failed"
 [ "$(db -c "select organization_id from public.volunteers where user_id = 'f0000000-0000-0000-0000-0000000000a3'")" = "$ORG" ] || fail "join: the profile was left without an organization"
 echo "ok - a profile saved while its owner joins lands in the organization"
 
+APP=f0000000-0000-0000-0000-0000000000c1
+db <<SQL >/dev/null
+update public.memberships set role = 'admin' where user_id in ('f0000000-0000-0000-0000-0000000000a1', 'f0000000-0000-0000-0000-0000000000a2');
+insert into public.applications (id, volunteer_id) select '$APP', id from public.volunteers where user_id = 'f0000000-0000-0000-0000-0000000000a3';
+SQL
+approve() { echo "set local role authenticated; set local request.jwt.claims = '{\"sub\": \"$1\", \"role\": \"authenticated\"}'; select public.decide_application('$APP', 'approved')"; }
+race "$(approve f0000000-0000-0000-0000-0000000000a1)" "$(approve f0000000-0000-0000-0000-0000000000a2)" "decide" | grep -q "Application is already approved" \
+  || fail "decide: the second approval wasn't refused"
+[ "$(db -c "select count(*) from public.audit_log where entity_id = '$APP'")" = 1 ] || fail "decide: the decision was recorded twice"
+[ "$(db -c "select reviewed_by from public.applications where id = '$APP'")" = f0000000-0000-0000-0000-0000000000a1 ] || fail "decide: the wrong reviewer was kept"
+echo "ok - two staff approving the same application at once record one decision"
+
+db -c "update public.applications set status = 'rejected' where id = '$APP';" >/dev/null
+reapply="insert into public.applications (volunteer_id) select id from public.volunteers where user_id = 'f0000000-0000-0000-0000-0000000000a3'"
+undo="set local role authenticated; set local request.jwt.claims = '{\"sub\": \"f0000000-0000-0000-0000-0000000000a1\", \"role\": \"authenticated\"}'; select public.decide_application('$APP', 'approved', expected_status => 'rejected')"
+race "$reapply" "$undo" "reapply" | grep -q "Only the latest application can be decided" || fail "reapply: the old application was decided"
+[ "$(db -c "select status from public.volunteers where user_id = 'f0000000-0000-0000-0000-0000000000a3'")" = pending ] || fail "reapply: the volunteer's status doesn't match their latest application"
+echo "ok - an old application can't be approved while the volunteer reapplies"
+
 out=$(db -c "begin isolation level repeatable read; insert into public.registrations (event_id, volunteer_id) values ('$E_DELETE', '$V2'); commit;" 2>&1 >/dev/null) && fail "isolation: insert succeeded"
 grep -q "read committed" <<<"$out" || fail "isolation: unexpected error: $out"
 echo "ok - registrations at stricter isolation levels are refused"

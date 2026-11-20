@@ -1,139 +1,122 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { mockGetUser, mockFrom, mockVolunteerEq, mockVolunteerMaybeSingle, mockInsert, mockInsertSelect, mockSingle } =
-  vi.hoisted(() => ({
+const { mockGetUser, mockVolunteerEq, mockVolunteerMaybeSingle, mockFieldsEq, mockInsert, mockSingle } = vi.hoisted(
+  () => ({
     mockGetUser: vi.fn(),
-    mockFrom: vi.fn(),
     mockVolunteerEq: vi.fn(),
     mockVolunteerMaybeSingle: vi.fn(),
+    mockFieldsEq: vi.fn(),
     mockInsert: vi.fn(),
-    mockInsertSelect: vi.fn(),
     mockSingle: vi.fn(),
-  }))
+  })
+)
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(async () => ({
     auth: { getUser: mockGetUser },
-    from: mockFrom.mockImplementation((table: string) => {
+    from: (table: string) => {
       if (table === "volunteers") {
-        return {
-          select: vi.fn(() => ({
-            eq: mockVolunteerEq.mockImplementation(() => ({
-              maybeSingle: mockVolunteerMaybeSingle,
-            })),
-          })),
-        }
+        return { select: () => ({ eq: mockVolunteerEq.mockImplementation(() => ({ maybeSingle: mockVolunteerMaybeSingle })) }) }
       }
-      return {
-        insert: mockInsert.mockImplementation(() => ({
-          select: mockInsertSelect.mockImplementation(() => ({
-            single: mockSingle,
-          })),
-        })),
+      if (table === "custom_fields") {
+        // .eq("organization_id", ...).eq("entity_type", "application") resolves to the rows.
+        return { select: () => ({ eq: () => ({ eq: mockFieldsEq }) }) }
       }
-    }),
+      if (table === "applications") {
+        return { insert: mockInsert.mockImplementation(() => ({ select: () => ({ single: mockSingle }) })) }
+      }
+      throw new Error(`unexpected table: ${table}`)
+    },
   })),
 }))
 
 import { submitVolunteerApplication } from "./applications"
 
 const user = { id: "user-1", email: "person@example.com" }
-const validPayload = {
-  phone: "555-123-4567",
-  location: "Waterloo",
-  weekdays: ["monday"],
-  shiftPreference: "morning",
-  skills: ["First aid"],
-  emergencyContactName: "Jamie",
-  emergencyContactPhone: "555-987-6543",
-  emergencyContactRelationship: "Friend",
-  agreedToTerms: true,
+const question = {
+  id: "q1",
+  organization_id: "org-1",
+  entity_type: "application" as const,
+  field_name: "Why do you want to volunteer?",
+  field_type: "textarea" as const,
+  required: true,
+  options: [],
+  position: 0,
+  created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
+}
+
+function volunteerWithQuestions(questions: (typeof question)[], organizationId: string | null = "org-1") {
+  mockGetUser.mockResolvedValue({ data: { user } })
+  mockVolunteerMaybeSingle.mockResolvedValue({ data: { id: "volunteer-1", organization_id: organizationId }, error: null })
+  mockFieldsEq.mockResolvedValue({ data: questions, error: null })
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
 })
 
 describe("submitVolunteerApplication", () => {
-  it("returns a validation error for a malformed payload", async () => {
-    const result = await submitVolunteerApplication({})
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.error.type).toBe("validation")
-    }
-    expect(mockGetUser).not.toHaveBeenCalled()
-  })
-
   it("returns unauthenticated when there is no session", async () => {
     mockGetUser.mockResolvedValue({ data: { user: null } })
 
-    const result = await submitVolunteerApplication(validPayload)
-
-    expect(result).toEqual({ ok: false, error: { type: "unauthenticated" } })
+    await expect(submitVolunteerApplication({})).resolves.toEqual({ ok: false, error: { type: "unauthenticated" } })
   })
 
   it("returns no-profile when the caller has no volunteer profile yet", async () => {
     mockGetUser.mockResolvedValue({ data: { user } })
     mockVolunteerMaybeSingle.mockResolvedValue({ data: null, error: null })
 
-    const result = await submitVolunteerApplication(validPayload)
-
-    expect(result).toEqual({ ok: false, error: { type: "no-profile" } })
+    await expect(submitVolunteerApplication({})).resolves.toEqual({ ok: false, error: { type: "no-profile" } })
     expect(mockInsert).not.toHaveBeenCalled()
   })
 
-  it("inserts a pending application for the caller's own volunteer_id", async () => {
-    mockGetUser.mockResolvedValue({ data: { user } })
-    mockVolunteerMaybeSingle.mockResolvedValue({ data: { id: "volunteer-1" }, error: null })
+  it("inserts answers keyed by question id for the caller's own volunteer_id, dropping anything else", async () => {
+    volunteerWithQuestions([question])
     mockSingle.mockResolvedValue({ data: { id: "application-1" }, error: null })
 
-    const result = await submitVolunteerApplication(validPayload)
+    const result = await submitVolunteerApplication({ q1: "I like helping", phone: "555-123-4567" })
 
     expect(result).toEqual({ ok: true, data: { id: "application-1" } })
     expect(mockVolunteerEq).toHaveBeenCalledWith("user_id", user.id)
-    expect(mockInsert).toHaveBeenCalledWith({
-      volunteer_id: "volunteer-1",
-      responses: validPayload,
-    })
+    expect(mockInsert).toHaveBeenCalledWith({ volunteer_id: "volunteer-1", responses: { q1: "I like helping" } })
   })
 
-  it("returns duplicate when a pending application already exists", async () => {
-    mockGetUser.mockResolvedValue({ data: { user } })
-    mockVolunteerMaybeSingle.mockResolvedValue({ data: { id: "volunteer-1" }, error: null })
-    mockSingle.mockResolvedValue({
-      data: null,
-      error: { code: "23505", message: "duplicate key value" },
+  it("returns a validation error keyed by question id when a required question isn't answered", async () => {
+    volunteerWithQuestions([question])
+
+    await expect(submitVolunteerApplication({})).resolves.toEqual({
+      ok: false,
+      error: { type: "validation", fieldErrors: { q1: ["Why do you want to volunteer? is required"] } },
     })
-
-    const result = await submitVolunteerApplication(validPayload)
-
-    expect(result).toEqual({ ok: false, error: { type: "duplicate" } })
+    expect(mockInsert).not.toHaveBeenCalled()
   })
 
-  it("returns not-eligible when the RLS check rejects the insert", async () => {
-    mockGetUser.mockResolvedValue({ data: { user } })
-    mockVolunteerMaybeSingle.mockResolvedValue({ data: { id: "volunteer-1" }, error: null })
-    mockSingle.mockResolvedValue({
-      data: null,
-      error: { code: "42501", message: "new row violates row-level security policy" },
-    })
+  it("applies with no answers when the organization asks no questions", async () => {
+    volunteerWithQuestions([])
+    mockSingle.mockResolvedValue({ data: { id: "application-1" }, error: null })
 
-    const result = await submitVolunteerApplication(validPayload)
-
-    expect(result).toEqual({ ok: false, error: { type: "not-eligible" } })
+    await expect(submitVolunteerApplication()).resolves.toEqual({ ok: true, data: { id: "application-1" } })
+    expect(mockInsert).toHaveBeenCalledWith({ volunteer_id: "volunteer-1", responses: {} })
   })
 
-  it("returns a backend error for any other failure", async () => {
-    mockGetUser.mockResolvedValue({ data: { user } })
-    mockVolunteerMaybeSingle.mockResolvedValue({ data: { id: "volunteer-1" }, error: null })
-    mockSingle.mockResolvedValue({
-      data: null,
-      error: { code: "08006", message: "connection failure" },
-    })
+  it("doesn't look up questions for a profile that hasn't joined an organization", async () => {
+    volunteerWithQuestions([question], null)
+    mockSingle.mockResolvedValue({ data: { id: "application-1" }, error: null })
 
-    const result = await submitVolunteerApplication(validPayload)
+    await expect(submitVolunteerApplication({})).resolves.toEqual({ ok: true, data: { id: "application-1" } })
+    expect(mockFieldsEq).not.toHaveBeenCalled()
+  })
 
-    expect(result).toEqual({ ok: false, error: { type: "backend", message: "connection failure" } })
+  it.each([
+    ["23505", "duplicate key value", { type: "duplicate" }],
+    ["42501", "new row violates row-level security policy", { type: "not-eligible" }],
+    ["22023", "Why do you want to volunteer? is required", { type: "validation", fieldErrors: { answers: ["Why do you want to volunteer? is required"] } }],
+    ["08006", "connection failure", { type: "backend", message: "connection failure" }],
+  ])("maps database error %s", async (code, message, error) => {
+    volunteerWithQuestions([])
+    mockSingle.mockResolvedValue({ data: null, error: { code, message } })
+
+    await expect(submitVolunteerApplication({})).resolves.toEqual({ ok: false, error })
   })
 })

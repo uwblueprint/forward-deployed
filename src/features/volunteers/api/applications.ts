@@ -1,8 +1,6 @@
-import { z } from "zod"
-
+import { validateCustomFieldAnswers } from "@/lib/customFieldAnswers"
+import type { CustomField } from "@/lib/customFieldAnswers"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
-
-import { volunteerOnboardingSchema } from "../schemas/volunteerSchema"
 
 export type VolunteerApplicationError =
   | { type: "validation"; fieldErrors: Record<string, string[]> }
@@ -17,20 +15,20 @@ export type VolunteerApplicationResult<T> =
   | { ok: false; error: VolunteerApplicationError }
 
 // Postgres SQLSTATEs the applications RLS/unique-index layer can raise here
-// (see supabase/migrations/20261027220355_create_tables.sql and
-// .../20261104002935_access_control.sql):
+// (see supabase/migrations/20261027220355_create_tables.sql,
+// .../20261104002935_access_control.sql, and .../20261111034139_org_config.sql):
 // - 23505 unique_violation: applications_one_pending_per_volunteer already
 //   has an open (pending) row for this volunteer.
 // - 42501 insufficient_privilege: the "applications: volunteers apply" RLS
 //   check failed - the only way that happens for a self-submitted insert is
 //   is_approved_volunteer() being true (an approved volunteer must wait to
 //   be reviewed again, not reapply).
+// - 22023 invalid_parameter_value: the database's answer check refused an
+//   answer. It applies the same rules as the check below, so this only
+//   happens if the organization's questions changed in between.
 const UNIQUE_VIOLATION = "23505"
 const RLS_VIOLATION = "42501"
-
-function validationError(fieldErrors: Record<string, string[]>): VolunteerApplicationError {
-  return { type: "validation", fieldErrors }
-}
+const INVALID_ANSWERS = "22023"
 
 /**
  * Plain server-side function - not a Server Action. Call it from inside a
@@ -40,14 +38,16 @@ function validationError(fieldErrors: Record<string, string[]>): VolunteerApplic
  * authenticated user's existing volunteer profile (see docs/role-model.md,
  * "Applications and volunteer status"). This is deliberately separate from
  * `submitVolunteerOnboarding` (src/features/volunteers/api/volunteers.ts),
- * which only creates/updates the profile itself - creating a profile and
+ * which creates the profile from the onboarding form - creating a profile and
  * applying are two distinct steps in the agreed model.
  *
- * Re-validates server-side via the same schema the onboarding wizard
- * validates client-side against (FOR-32) - never trust client validation
- * alone. Ownership and duplicate-submission protection are not re-implemented
- * here: the volunteer_id is always the caller's own (never taken from
- * input), and the database's RLS check plus the
+ * `responses` are answers to the organization's application questions, keyed
+ * by `custom_fields.id` - not the onboarding form, whose fields already live
+ * on the volunteer profile. They're checked against the questions of the
+ * volunteer's organization (the same ones the database checks), and answers
+ * to anything else are dropped. Ownership and duplicate-submission protection
+ * are not re-implemented here: the volunteer_id is always the caller's own
+ * (never taken from input), and the database's RLS check plus the
  * `applications_one_pending_per_volunteer` partial unique index are the
  * single atomic source of truth for "is this caller allowed to apply" and
  * "do they already have an open application." This function only translates
@@ -57,13 +57,8 @@ function validationError(fieldErrors: Record<string, string[]>): VolunteerApplic
  * is for a later ticket to use for frontend draft cleanup.
  */
 export async function submitVolunteerApplication(
-  input: unknown
+  responses: unknown = {}
 ): Promise<VolunteerApplicationResult<{ id: string }>> {
-  const parsed = volunteerOnboardingSchema.safeParse(input)
-  if (!parsed.success) {
-    return { ok: false, error: validationError(z.flattenError(parsed.error).fieldErrors) }
-  }
-
   const supabase = await createServerSupabaseClient()
   const {
     data: { user },
@@ -75,7 +70,7 @@ export async function submitVolunteerApplication(
 
   const { data: volunteer, error: volunteerError } = await supabase
     .from("volunteers")
-    .select("id")
+    .select("id, organization_id")
     .eq("user_id", user.id)
     .maybeSingle()
 
@@ -86,9 +81,29 @@ export async function submitVolunteerApplication(
     return { ok: false, error: { type: "no-profile" } }
   }
 
+  // A profile saved before its owner joined an organization has no questions to answer.
+  let fields: CustomField[] = []
+  if (volunteer.organization_id) {
+    const { data, error: fieldsError } = await supabase
+      .from("custom_fields")
+      .select("*")
+      .eq("organization_id", volunteer.organization_id)
+      .eq("entity_type", "application")
+
+    if (fieldsError) {
+      return { ok: false, error: { type: "backend", message: fieldsError.message } }
+    }
+    fields = data ?? []
+  }
+
+  const validated = validateCustomFieldAnswers(fields, responses)
+  if (!validated.ok) {
+    return { ok: false, error: { type: "validation", fieldErrors: validated.fieldErrors } }
+  }
+
   const { data: application, error: applicationError } = await supabase
     .from("applications")
-    .insert({ volunteer_id: volunteer.id, responses: parsed.data })
+    .insert({ volunteer_id: volunteer.id, responses: validated.data })
     .select("id")
     .single()
 
@@ -98,6 +113,9 @@ export async function submitVolunteerApplication(
     }
     if (applicationError.code === RLS_VIOLATION) {
       return { ok: false, error: { type: "not-eligible" } }
+    }
+    if (applicationError.code === INVALID_ANSWERS) {
+      return { ok: false, error: { type: "validation", fieldErrors: { answers: [applicationError.message] } } }
     }
     return { ok: false, error: { type: "backend", message: applicationError.message } }
   }
