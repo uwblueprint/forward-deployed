@@ -4,6 +4,8 @@ import type { Event } from "@/lib/adapters"
 
 import { getEventRegistrations } from "./eventRegistrations"
 import type { EventRegistration, EventRegistrationsFilter, EventRegistrationsResult } from "./eventRegistrations"
+import { getMyEvents, getOpportunities } from "./events"
+import type { EventQueryResult, MyEvents, MyEventsResult, OpportunityFilters } from "./events"
 import { createEvent, updateEvent } from "./manageEvents"
 import type { EventMutationResult } from "./manageEvents"
 import { cancelRegistration, registerForEvent } from "./registrations"
@@ -11,7 +13,8 @@ import type { EventCancellationResult, EventRegistrationResult } from "./registr
 
 /**
  * Server Action wrappers so a Client Component can call these directly. Not
- * wired into any component yet - see registrations.ts's doc comment.
+ * wired into any component yet - see registrations.ts's/events.ts's doc
+ * comments.
  */
 export async function registerForEventAction(
   eventId: string,
@@ -24,6 +27,16 @@ export async function cancelRegistrationAction(
   registrationId: string
 ): Promise<EventCancellationResult<{ id: string }>> {
   return cancelRegistration(registrationId)
+}
+
+export async function getOpportunitiesAction(
+  filters: OpportunityFilters = {}
+): Promise<EventQueryResult<Event[]>> {
+  return getOpportunities(filters)
+}
+
+export async function getMyEventsAction(): Promise<MyEventsResult<MyEvents>> {
+  return getMyEvents()
 }
 
 export async function createEventAction(input: unknown): Promise<EventMutationResult<Event>> {
