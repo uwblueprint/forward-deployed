@@ -2,8 +2,11 @@
 
 import type { Event } from "@/lib/adapters/types"
 
-import { getMyEvents, getOpportunities } from "./events"
-import type { EventQueryResult, MyEvents, MyEventsResult, OpportunityFilters } from "./events"
+import { changeEventStatus } from "./eventLifecycle"
+import type { EventStatus } from "../utils/eventState"
+import type { EventTransitionResult } from "./eventLifecycle"
+import { getEvents, getMyEvents, getOpportunities } from "./events"
+import type { EventQueryResult, MyEvents, MyEventsResult, OpportunityFilters, StaffEventFilters } from "./events"
 import { cancelRegistration, registerForEvent } from "./registrations"
 import type { EventCancellationResult, EventRegistrationResult } from "./registrations"
 
@@ -33,4 +36,15 @@ export async function getOpportunitiesAction(
 
 export async function getMyEventsAction(): Promise<MyEventsResult<MyEvents>> {
   return getMyEvents()
+}
+
+export async function getEventsAction(filters: StaffEventFilters = {}): Promise<EventQueryResult<Event[]>> {
+  return getEvents(filters)
+}
+
+export async function changeEventStatusAction(
+  eventId: string,
+  status: EventStatus
+): Promise<EventTransitionResult<Event>> {
+  return changeEventStatus(eventId, status)
 }

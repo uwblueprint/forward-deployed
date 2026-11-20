@@ -1,8 +1,17 @@
+import type { SupabaseClient } from "@supabase/supabase-js"
+import { z } from "zod"
+
+import { getUserRole } from "@/features/auth"
 import type { Event } from "@/lib/adapters/types"
+import type { Database, Enums } from "@/lib/supabase/database.types"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
+
+import { deriveEventState } from "../utils/eventState"
 
 export type EventQueryError =
   | { type: "unauthenticated" }
+  | { type: "forbidden" }
+  | { type: "validation"; fieldErrors: Record<string, string[]> }
   | { type: "backend"; message: string }
 
 export type MyEventsError =
@@ -18,7 +27,8 @@ export type MyEventsResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: MyEventsError }
 
-export interface OpportunityFilters {
+/** Filters shared by the volunteer and staff event queries. */
+interface EventFilters {
   /** Matched against the title, case-insensitively, as a substring. */
   name?: string
   category?: string
@@ -28,6 +38,9 @@ export interface OpportunityFilters {
   startsAfter?: string
   /** ISO timestamp - only events starting at or before this. */
   startsBefore?: string
+}
+
+export interface OpportunityFilters extends EventFilters {
   /**
    * Only events that are still joinable right now: published, not yet
    * started, before any registration deadline, and under capacity. "Full"
@@ -35,6 +48,17 @@ export interface OpportunityFilters {
    * is computed here rather than queried directly.
    */
   onlyAvailable?: boolean
+}
+
+export interface StaffEventFilters extends EventFilters {
+  /** One status or several; omit for every status, drafts included. */
+  status?: Enums<"event_status"> | Enums<"event_status">[]
+  /**
+   * A calendar window (month, week, or day): events that overlap it, so a
+   * multi-day event shows on every day it spans. The caller computes the
+   * bounds in the viewer's timezone. `to` is exclusive.
+   */
+  range?: { from: string; to: string }
 }
 
 export interface MyEvents {
@@ -48,11 +72,23 @@ export interface MyEvents {
 const EVENT_COLUMNS = "*, registration_count"
 
 function isAvailable(event: Event, now: number): boolean {
-  if (event.status !== "published") return false
-  if (new Date(event.starts_at).getTime() <= now) return false
-  if (event.registration_deadline && new Date(event.registration_deadline).getTime() <= now) return false
-  if (event.capacity != null && (event.registration_count ?? 0) >= event.capacity) return false
-  return true
+  return deriveEventState(event, now).registration === "open"
+}
+
+// Escapes ilike's wildcards so a search for "50%" matches the literal text.
+function likePattern(text: string) {
+  return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+}
+
+/** The events query with the shared filters applied; callers add their own and order it. */
+function filteredEvents(supabase: SupabaseClient<Database>, filters: EventFilters) {
+  let query = supabase.from("events").select(EVENT_COLUMNS)
+  if (filters.name) query = query.ilike("title", likePattern(filters.name))
+  if (filters.category) query = query.eq("category", filters.category)
+  if (filters.location) query = query.ilike("location", likePattern(filters.location))
+  if (filters.startsAfter) query = query.gte("starts_at", filters.startsAfter)
+  if (filters.startsBefore) query = query.lte("starts_at", filters.startsBefore)
+  return query
 }
 
 /**
@@ -80,23 +116,7 @@ export async function getOpportunities(
     return { ok: false, error: { type: "unauthenticated" } }
   }
 
-  let query = supabase.from("events").select(EVENT_COLUMNS)
-
-  if (filters.name) {
-    query = query.ilike("title", `%${filters.name}%`)
-  }
-  if (filters.category) {
-    query = query.eq("category", filters.category)
-  }
-  if (filters.location) {
-    query = query.ilike("location", `%${filters.location}%`)
-  }
-  if (filters.startsAfter) {
-    query = query.gte("starts_at", filters.startsAfter)
-  }
-  if (filters.startsBefore) {
-    query = query.lte("starts_at", filters.startsBefore)
-  }
+  const query = filteredEvents(supabase, filters)
 
   const { data, error } = await query.order("starts_at")
   if (error) {
@@ -110,6 +130,52 @@ export async function getOpportunities(
 
   const now = Date.now()
   return { ok: true, data: events.filter((event) => isAvailable(event, now)) }
+}
+
+const eventStatus = z.enum(["draft", "published", "cancelled", "completed"] satisfies Enums<"event_status">[])
+const timestamp = z.iso.datetime({ offset: true })
+
+// The status and range filters are checked at runtime because getEventsAction
+// takes them straight from the client; the text filters are passed as values.
+const staffFiltersSchema = z.object({
+  status: z.union([eventStatus, z.array(eventStatus)]).optional(),
+  range: z
+    .object({ from: timestamp, to: timestamp })
+    .refine((r) => Date.parse(r.to) > Date.parse(r.from), { message: "Range must end after it starts" })
+    .optional(),
+})
+
+/**
+ * Every event in the staff member's organization, drafts included, for the
+ * admin calendar and list (FOR-80). Staff-only (admin and manager); RLS
+ * scopes the rows to the caller's organization. Same filters as
+ * getOpportunities, plus status and a calendar window.
+ */
+export async function getEvents(filters: StaffEventFilters = {}): Promise<EventQueryResult<Event[]>> {
+  const parsed = staffFiltersSchema.safeParse(filters ?? {})
+  if (!parsed.success) {
+    return { ok: false, error: { type: "validation", fieldErrors: z.flattenError(parsed.error).fieldErrors } }
+  }
+  const { status, range } = parsed.data
+
+  const supabase = await createServerSupabaseClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: { type: "unauthenticated" } }
+
+  const role = await getUserRole(user)
+  if (role !== "admin" && role !== "manager") return { ok: false, error: { type: "forbidden" } }
+
+  let query = filteredEvents(supabase, filters)
+  // An empty list means no status filter, same as omitting it.
+  const statuses = status === undefined ? [] : Array.isArray(status) ? status : [status]
+  if (statuses.length > 0) query = query.in("status", statuses)
+  if (range) query = query.lt("starts_at", range.to).gt("ends_at", range.from)
+
+  const { data, error } = await query.order("starts_at")
+  if (error) return { ok: false, error: { type: "backend", message: error.message } }
+  return { ok: true, data: data ?? [] }
 }
 
 /**
