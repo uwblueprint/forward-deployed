@@ -1,5 +1,7 @@
 "use server"
 
+import type { Event } from "@/lib/adapters"
+
 import { getEventRegistrations, setAttendance } from "./eventRegistrations"
 import type {
   AttendanceStatus,
@@ -7,6 +9,8 @@ import type {
   EventRegistrationsFilter,
   EventRegistrationsResult,
 } from "./eventRegistrations"
+import { createEvent, updateEvent } from "./manageEvents"
+import type { EventMutationResult } from "./manageEvents"
 import { cancelRegistration, registerForEvent } from "./registrations"
 import type { EventCancellationResult, EventRegistrationResult } from "./registrations"
 
@@ -25,6 +29,14 @@ export async function cancelRegistrationAction(
   registrationId: string
 ): Promise<EventCancellationResult<{ id: string }>> {
   return cancelRegistration(registrationId)
+}
+
+export async function createEventAction(input: unknown): Promise<EventMutationResult<Event>> {
+  return createEvent(input)
+}
+
+export async function updateEventAction(id: string, input: unknown): Promise<EventMutationResult<Event>> {
+  return updateEvent(id, input)
 }
 
 export async function getEventRegistrationsAction(
