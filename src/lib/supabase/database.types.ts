@@ -5,7 +5,27 @@ export type Database = {
   
   "public": {
           Tables: {
-            "application_notes": {
+            "application_drafts": {
+                  Row: {
+                    "created_at": string,"responses": NonNullable<Json>,"updated_at": string,"volunteer_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"responses"?: NonNullable<Json>,"updated_at"?: string,"volunteer_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"responses"?: NonNullable<Json>,"updated_at"?: string,"volunteer_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "application_drafts_volunteer_id_fkey"
+      columns: ["volunteer_id"]
+isOneToOne: true
+      referencedRelation: "volunteers"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"application_notes": {
                   Row: {
                     "application_id": string,"created_at": string,"internal_note": string,"updated_at": string,"updated_by": string | null
                   }
