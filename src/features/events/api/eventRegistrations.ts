@@ -7,7 +7,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server"
 
 export type EventRegistration = Pick<
   Tables<"registrations">,
-  "id" | "event_id" | "status" | "custom_responses" | "created_at" | "updated_at"
+  "id" | "event_id" | "status" | "attendance_status" | "custom_responses" | "created_at" | "updated_at"
 > & {
   /** Null only if RLS hides the volunteer row. */
   volunteer: VolunteerWithUser | null
@@ -33,9 +33,8 @@ const filterSchema = z.object({
   status: z.enum(["registered", "cancelled"] satisfies Enums<"registration_status">[]).optional(),
 })
 
-// Attendance is left out on purpose: recording it isn't approved yet (FOR-83).
 const REGISTRATION_COLUMNS =
-  "id, event_id, status, custom_responses, created_at, updated_at, volunteer:volunteers(*, user:users(first_name, last_name, email))"
+  "id, event_id, status, attendance_status, custom_responses, created_at, updated_at, volunteer:volunteers(*, user:users(first_name, last_name, email))"
 
 const STAFF_ROLES = ["admin", "manager"]
 
@@ -45,8 +44,8 @@ const STAFF_ROLES = ["admin", "manager"]
  *
  * Staff-only (admin and manager, matching the registrations RLS). Lists an
  * event's registrations, oldest first, each with the volunteer's shared
- * profile and name/email. Read-only: adding or removing people, attendance,
- * and hours are out of scope.
+ * profile, name/email, and attendance. Adding or removing people and hours
+ * are out of scope; setAttendance records attendance.
  *
  * Tenant isolation is the RLS's job (see "admin sees org A registrations
  * only" in supabase/tests/database/access_control.test.sql): another
@@ -90,5 +89,51 @@ export async function getEventRegistrations(
 
   const { data, error } = await query.order("created_at")
   if (error) return { ok: false, error: { type: "backend", message: error.message } }
+  return { ok: true, data }
+}
+
+export type AttendanceStatus = "attended" | "no_show"
+
+const attendanceSchema = z.object({
+  registrationId: z.guid(),
+  // No null: the database refuses to clear recorded attendance.
+  attendance: z.enum(["attended", "no_show"] satisfies AttendanceStatus[]),
+})
+
+const RLS_VIOLATION = "42501"
+
+/**
+ * Staff-only. Records or corrects a registration's attendance. Another
+ * organization's registration is hidden by RLS and reads as not found.
+ */
+export async function setAttendance(
+  registrationId: string,
+  attendance: AttendanceStatus
+): Promise<EventRegistrationsResult<EventRegistration>> {
+  const parsed = attendanceSchema.safeParse({ registrationId, attendance })
+  if (!parsed.success) {
+    return { ok: false, error: { type: "validation", fieldErrors: z.flattenError(parsed.error).fieldErrors } }
+  }
+
+  const supabase = await createServerSupabaseClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: { type: "unauthenticated" } }
+
+  const role = await getUserRole(user)
+  if (!role || !STAFF_ROLES.includes(role)) return { ok: false, error: { type: "forbidden" } }
+
+  const { data, error } = await supabase
+    .from("registrations")
+    .update({ attendance_status: parsed.data.attendance })
+    .eq("id", registrationId)
+    .select(REGISTRATION_COLUMNS)
+    .maybeSingle()
+  if (error) {
+    if (error.code === RLS_VIOLATION) return { ok: false, error: { type: "forbidden" } }
+    return { ok: false, error: { type: "backend", message: error.message } }
+  }
+  if (!data) return { ok: false, error: { type: "not-found" } }
   return { ok: true, data }
 }

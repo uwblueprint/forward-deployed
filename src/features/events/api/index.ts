@@ -1,5 +1,11 @@
-export { cancelRegistrationAction, getEventRegistrationsAction, registerForEventAction } from "./actions"
+export {
+  cancelRegistrationAction,
+  getEventRegistrationsAction,
+  registerForEventAction,
+  setAttendanceAction,
+} from "./actions"
 export type {
+  AttendanceStatus,
   EventRegistration,
   EventRegistrationsError,
   EventRegistrationsFilter,
