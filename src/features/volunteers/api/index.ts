@@ -5,6 +5,8 @@ export {
   saveDraftAction,
   submitVolunteerApplicationAction,
   submitVolunteerOnboardingAction,
+  updateMyVolunteerProfileAction,
+  updateVolunteerProfileAction,
 } from "./actions"
 export type { ApplicationDraft, ApplicationDraftError, ApplicationDraftResult } from "./applicationDrafts"
 export type { VolunteerApplicationError, VolunteerApplicationResult } from "./applications"
@@ -18,3 +20,4 @@ export type {
   ApplicationStatusResult,
 } from "./applicationStatus"
 export type { VolunteerOnboardingError, VolunteerOnboardingResult } from "./volunteers"
+export type { VolunteerProfileError, VolunteerProfileResult, VolunteerProfileUpdate } from "./volunteerProfile"
