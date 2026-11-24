@@ -112,7 +112,7 @@ export async function deleteCustomField(id: string): Promise<SettingsResult<{ id
  * Puts one kind of question (application or registration) in the given
  * order. `ids` must be exactly that kind's questions; if someone added or
  * removed one since the page loaded, nothing changes and the caller should
- * reload. Only questions whose position changes are written.
+ * reload.
  */
 export async function reorderCustomFields(input: unknown): Promise<SettingsResult<{ ids: string[] }>> {
   const parsed = customFieldOrderSchema.safeParse(input)
@@ -120,34 +120,20 @@ export async function reorderCustomFields(input: unknown): Promise<SettingsResul
 
   const context = await getAdminContext()
   if (!context.ok) return context
-  const { supabase, organizationId } = context.data
+  const { supabase } = context.data
   const { entityType, ids } = parsed.data
 
-  const { data: current, error: readError } = await supabase
-    .from("custom_fields")
-    .select("id, position")
-    .eq("organization_id", organizationId)
-    .eq("entity_type", entityType)
+  // One database call that reorders all of them or none (see
+  // supabase/migrations/20261124030000_reorder_custom_fields.sql).
+  const { error } = await supabase.rpc("reorder_custom_fields", { target_entity_type: entityType, ordered_ids: ids })
 
-  if (readError) return { ok: false, error: fromDatabaseError(readError) }
-
-  const positions = new Map((current ?? []).map((field) => [field.id, field.position]))
-  if (positions.size !== ids.length || ids.some((id) => !positions.has(id))) {
+  if (error?.code === "22023") {
     return {
       ok: false,
       error: { type: "validation", fieldErrors: { ids: ["The questions changed since this page loaded. Reload and try again."] } },
     }
   }
-
-  const moves = ids.flatMap((id, position) => (positions.get(id) === position ? [] : [{ id, position }]))
-  const results = await Promise.all(
-    moves.map(({ id, position }) =>
-      supabase.from("custom_fields").update({ position }).eq("id", id).eq("organization_id", organizationId)
-    )
-  )
-
-  const failed = results.find((result) => result.error)
-  if (failed?.error) return { ok: false, error: fromDatabaseError(failed.error) }
+  if (error) return { ok: false, error: fromDatabaseError(error) }
 
   return { ok: true, data: { ids } }
 }

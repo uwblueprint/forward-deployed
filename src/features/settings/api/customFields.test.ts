@@ -3,10 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { argsOf, createQueryMock } from "@/test/supabaseQueryMock"
 
 const mockGetUser = vi.fn()
+const mockRpc = vi.fn()
 const db = createQueryMock()
 
 vi.mock("@/lib/supabase/server", () => ({
-  createServerSupabaseClient: vi.fn(async () => ({ auth: { getUser: mockGetUser }, from: (table: string) => db.from(table) })),
+  createServerSupabaseClient: vi.fn(async () => ({ auth: { getUser: mockGetUser }, from: (table: string) => db.from(table), rpc: mockRpc })),
 }))
 
 import { createCustomField, deleteCustomField, reorderCustomFields, updateCustomField } from "./customFields"
@@ -205,46 +206,32 @@ describe("deleteCustomField", () => {
 })
 
 describe("reorderCustomFields", () => {
-  it("writes only the questions whose position changed", async () => {
+  it("reorders in one database call", async () => {
     signedInAs("admin")
-    db.respond("custom_fields.select", {
-      data: [
-        { id: Q1, position: 0 },
-        { id: Q2, position: 1 },
-        { id: Q3, position: 2 },
-      ],
-      error: null,
-    })
-    db.respond("custom_fields.update", { data: null, error: null }, { data: null, error: null })
+    mockRpc.mockResolvedValue({ data: null, error: null })
 
     const result = await reorderCustomFields({ entityType: "application", ids: [Q2, Q1, Q3] })
 
     expect(result).toEqual({ ok: true, data: { ids: [Q2, Q1, Q3] } })
-    const updates = db.find("custom_fields.update")
-    expect(updates.map((update) => [argsOf(update, "update"), argsOf(update, "eq")])).toEqual([
-      [[{ position: 0 }], ["id", Q2]],
-      [[{ position: 1 }], ["id", Q1]],
-    ])
+    expect(mockRpc).toHaveBeenCalledWith("reorder_custom_fields", {
+      target_entity_type: "application",
+      ordered_ids: [Q2, Q1, Q3],
+    })
+    expect(db.find("custom_fields.update")).toHaveLength(0)
   })
 
   it("changes nothing if the questions changed since the page loaded", async () => {
     signedInAs("admin")
-    db.respond("custom_fields.select", { data: [{ id: Q1, position: 0 }, { id: Q3, position: 1 }], error: null })
+    mockRpc.mockResolvedValue({ data: null, error: { code: "22023", message: "The questions changed; reload and try again" } })
 
     const result = await reorderCustomFields({ entityType: "application", ids: [Q2, Q1] })
 
     expect(result).toMatchObject({ ok: false, error: { type: "validation", fieldErrors: { ids: expect.any(Array) } } })
-    expect(db.find("custom_fields.update")).toHaveLength(0)
   })
 
-  it("reports a failed write", async () => {
+  it("reports a failed reorder", async () => {
     signedInAs("admin")
-    db.respond("custom_fields.select", { data: [{ id: Q1, position: 0 }, { id: Q2, position: 1 }], error: null })
-    db.respond(
-      "custom_fields.update",
-      { data: null, error: null },
-      { data: null, error: { code: "XX000", message: "boom" } }
-    )
+    mockRpc.mockResolvedValue({ data: null, error: { code: "XX000", message: "boom" } })
 
     await expect(reorderCustomFields({ entityType: "application", ids: [Q2, Q1] })).resolves.toEqual({
       ok: false,
