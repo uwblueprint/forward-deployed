@@ -27,6 +27,8 @@ export type AdminNavItem = {
   label: string
   href: string
   icon?: ComponentType<{ className?: string }>
+  // Shown only when the shell's `isAdmin` is true, e.g. settings managers can't open.
+  adminOnly?: boolean
 }
 
 // Mirrors the Figma "AppSidebar / Inset" component (Design System [ShadCN], Sidebar page).
@@ -40,7 +42,7 @@ export const DEFAULT_ADMIN_NAV_ITEMS: AdminNavItem[] = [
 
 // Pinned above the account menu at the bottom of the sidebar.
 export const DEFAULT_ADMIN_UTILITY_NAV_ITEMS: AdminNavItem[] = [
-  { label: "Settings", href: "/admin/settings", icon: SettingsIcon },
+  { label: "Settings", href: "/admin/settings", icon: SettingsIcon, adminOnly: true },
 ]
 
 type AdminShellProps = {
@@ -50,16 +52,23 @@ type AdminShellProps = {
   // Rendered in the sidebar footer, e.g. <AccountMenu />. Server-rendered by the layout.
   account?: ReactNode
   title?: string
+  // Shows the adminOnly items; leave it out for managers. Only hides links,
+  // so each page still checks the role itself.
+  isAdmin?: boolean
 }
 
 export function AdminShell({
   children,
-  navItems = DEFAULT_ADMIN_NAV_ITEMS,
-  utilityNavItems = DEFAULT_ADMIN_UTILITY_NAV_ITEMS,
+  navItems: allNavItems = DEFAULT_ADMIN_NAV_ITEMS,
+  utilityNavItems: allUtilityNavItems = DEFAULT_ADMIN_UTILITY_NAV_ITEMS,
   account,
   title = "UW Blueprint",
+  isAdmin = false,
 }: AdminShellProps) {
   const pathname = usePathname()
+  const visible = (item: AdminNavItem) => isAdmin || !item.adminOnly
+  const navItems = allNavItems.filter(visible)
+  const utilityNavItems = allUtilityNavItems.filter(visible)
   const pageTitle =
     [...navItems, ...utilityNavItems].find((item) => isActive(pathname, item.href))?.label ?? title
   // Desktop: full sidebar vs icon rail. Mobile: closed vs overlay drawer.

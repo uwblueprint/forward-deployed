@@ -5,7 +5,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(46);
 
 insert into auth.users (id, email) values
   ('20000000-0000-0000-0000-0000000000a0', 'admin.a@example.com'),
@@ -54,6 +54,38 @@ select throws_ok($$ insert into public.custom_fields (organization_id, entity_ty
   '23514', null, 'a name of only tabs and newlines is blank too');
 select throws_ok($$ insert into public.custom_fields (organization_id, entity_type, field_name, field_type, options) values ('10000000-0000-0000-0000-00000000000a', 'registration', 'Size', 'select', '"S"') $$,
   '23514', null, 'select options must be a list');
+
+-- Reordering questions: all or nothing, admins only, own organization only.
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a5", "role": "authenticated"}';
+select throws_ok($$ select public.reorder_custom_fields('application', array['70000000-0000-0000-0000-000000000071']::uuid[]) $$,
+  '42501', null, 'a manager cannot reorder questions');
+set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a0", "role": "authenticated"}';
+select lives_ok($$ select public.reorder_custom_fields('registration', array[
+    '70000000-0000-0000-0000-000000000077', '70000000-0000-0000-0000-000000000072', '70000000-0000-0000-0000-000000000073',
+    '70000000-0000-0000-0000-000000000074', '70000000-0000-0000-0000-000000000075', '70000000-0000-0000-0000-000000000076']::uuid[]) $$,
+  'admin reorders their questions');
+select results_eq($$ select right(id::text, 2) from public.custom_fields where entity_type = 'registration' and organization_id = '10000000-0000-0000-0000-00000000000a' order by position $$,
+  $$ values ('77'), ('72'), ('73'), ('74'), ('75'), ('76') $$, 'the questions take the given order, with no shared positions');
+select throws_ok($$ select public.reorder_custom_fields('registration', array['70000000-0000-0000-0000-000000000072', '70000000-0000-0000-0000-000000000073']::uuid[]) $$,
+  '22023', null, 'a list that misses a question changes nothing');
+select throws_ok($$ select public.reorder_custom_fields('registration', array[
+    '70000000-0000-0000-0000-000000000072', '70000000-0000-0000-0000-000000000073', '70000000-0000-0000-0000-000000000074',
+    '70000000-0000-0000-0000-000000000075', '70000000-0000-0000-0000-000000000076', '70000000-0000-0000-0000-00000000007b']::uuid[]) $$,
+  '22023', null, 'another organization''s question cannot be slipped in');
+select throws_ok($$ select public.reorder_custom_fields('registration', array[
+    '70000000-0000-0000-0000-000000000072', '70000000-0000-0000-0000-000000000072', '70000000-0000-0000-0000-000000000073',
+    '70000000-0000-0000-0000-000000000074', '70000000-0000-0000-0000-000000000075', '70000000-0000-0000-0000-000000000076']::uuid[]) $$,
+  '22023', null, 'a list that repeats a question changes nothing');
+select throws_ok($$ select public.reorder_custom_fields('application', array['70000000-0000-0000-0000-000000000072']::uuid[]) $$,
+  '22023', null, 'a question of the other kind is refused');
+select throws_ok($$ select public.reorder_custom_fields('registration', '{}') $$,
+  '22023', null, 'an empty list is refused while there are questions');
+select lives_ok($$ select public.reorder_custom_fields('registration', array[
+    '70000000-0000-0000-0000-000000000072', '70000000-0000-0000-0000-000000000073', '70000000-0000-0000-0000-000000000074',
+    '70000000-0000-0000-0000-000000000075', '70000000-0000-0000-0000-000000000076', '70000000-0000-0000-0000-000000000077']::uuid[]) $$,
+  'admin puts them back');
+reset role;
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub": "20000000-0000-0000-0000-0000000000a0", "role": "authenticated"}';
