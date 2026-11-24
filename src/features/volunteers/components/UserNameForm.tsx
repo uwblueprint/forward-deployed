@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { z } from "zod"
 
 import { Button } from "@/components/ui/button"
@@ -24,7 +24,11 @@ export function UserNameForm({ userId, initialValues, onSaved, onCancel }: UserN
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
+  // A ref, not the saving state: two quick submits both run before a re-render.
+  const inFlight = useRef(false)
+
   async function save() {
+    if (inFlight.current) return
     const parsed = userNameSchema.safeParse(values)
     if (!parsed.success) {
       setErrors(z.flattenError(parsed.error).fieldErrors)
@@ -34,6 +38,7 @@ export function UserNameForm({ userId, initialValues, onSaved, onCancel }: UserN
     setErrors({})
     setFormError(null)
     setSaving(true)
+    inFlight.current = true
     try {
       const result = await updateUserNameAction(userId, parsed.data)
       if (result.ok) {
@@ -50,6 +55,7 @@ export function UserNameForm({ userId, initialValues, onSaved, onCancel }: UserN
     } catch {
       setFormError("Couldn't save the name. Try again.")
     } finally {
+      inFlight.current = false
       setSaving(false)
     }
   }

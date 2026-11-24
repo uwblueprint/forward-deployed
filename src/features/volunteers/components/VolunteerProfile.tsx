@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState, type ReactNode } from "react"
+import { useState, useTransition, type ReactNode } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -69,9 +69,13 @@ export function VolunteerProfile({ details, canRename }: VolunteerProfileProps) 
   const { volunteer, user, latestApplication, events, eventsAttended, hours } = details
   const name = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "Unnamed volunteer"
 
+  const [refreshing, startRefresh] = useTransition()
+
+  // Edit and Rename stay disabled until the saved values arrive, so a form
+  // reopened straight away can't start from the old ones and write them back.
   function saved(close: () => void) {
     close()
-    router.refresh()
+    startRefresh(() => router.refresh())
   }
 
   return (
@@ -92,7 +96,7 @@ export function VolunteerProfile({ details, canRename }: VolunteerProfileProps) 
             <h1 className="text-2xl font-semibold tracking-tight">{name}</h1>
             <Badge variant={STATUS_VARIANT[volunteer.status]}>{capitalize(volunteer.status)}</Badge>
             {canRename && user && (
-              <Button variant="outline" size="sm" onClick={() => setRenaming(true)}>
+              <Button variant="outline" size="sm" disabled={refreshing} onClick={() => setRenaming(true)}>
                 Rename
               </Button>
             )}
@@ -106,7 +110,7 @@ export function VolunteerProfile({ details, canRename }: VolunteerProfileProps) 
           <CardTitle>Profile</CardTitle>
           {!editing && (
             <CardAction>
-              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Button variant="outline" size="sm" disabled={refreshing} onClick={() => setEditing(true)}>
                 Edit
               </Button>
             </CardAction>

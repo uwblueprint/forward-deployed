@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { z } from "zod"
 
 import { Button } from "@/components/ui/button"
@@ -76,7 +76,16 @@ export function VolunteerProfileForm({
     return errors[name] ? { "aria-invalid": true, "aria-describedby": `${name}-error` } : {}
   }
 
+  // A ref, not the saving state: two quick submits both run before a re-render.
+  const inFlight = useRef(false)
+
+  // Ties a group's error to the group, so it's read again on return to it.
+  function fieldsetError(name: string) {
+    return errors[name] ? { "aria-describedby": `${name}-error` } : {}
+  }
+
   async function save() {
+    if (inFlight.current) return
     const parsed = volunteerProfileUpdateSchema.safeParse(values)
     if (!parsed.success) {
       setErrors(z.flattenError(parsed.error).fieldErrors)
@@ -86,6 +95,7 @@ export function VolunteerProfileForm({
     setErrors({})
     setFormError(null)
     setSaving(true)
+    inFlight.current = true
     try {
       const result = await updateVolunteerProfileAction(volunteerId, parsed.data)
       if (result.ok) {
@@ -104,6 +114,7 @@ export function VolunteerProfileForm({
     } catch {
       setFormError("Couldn't save the profile. Try again.")
     } finally {
+      inFlight.current = false
       setSaving(false)
     }
   }
@@ -141,7 +152,7 @@ export function VolunteerProfileForm({
         </div>
       </div>
 
-      <fieldset className="flex flex-col gap-2">
+      <fieldset className="flex flex-col gap-2" {...fieldsetError("weekdays")}>
         <legend className="mb-2 text-sm font-medium">Available days</legend>
         <div className="flex flex-wrap gap-3">
           {WEEKDAYS.map((day: Weekday) => (
@@ -178,7 +189,7 @@ export function VolunteerProfileForm({
         <FieldError name="shiftPreference" errors={errors} />
       </div>
 
-      <fieldset className="flex flex-col gap-2">
+      <fieldset className="flex flex-col gap-2" {...fieldsetError("skills")}>
         <legend className="mb-2 text-sm font-medium">Skills</legend>
         <div className="flex flex-wrap gap-3">
           {allSkills.map((skill) => (
