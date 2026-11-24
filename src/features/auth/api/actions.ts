@@ -3,6 +3,7 @@
 import type { User } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { isAllowedOrigin } from "@/lib/allowed-origin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   requestPasswordReset,
@@ -48,16 +49,19 @@ function isLocalhost(host: string): boolean {
  * Browsers send `Origin` on same-origin POSTs (including Server Action
  * submissions), so prefer it. Fall back to `host` + `x-forwarded-proto`
  * only when it's missing, guessing "http" for localhost since
- * `x-forwarded-proto` is typically only set behind a proxy. Returns
- * undefined if there's no host to build from at all, rather than
- * constructing a malformed URL.
+ * `x-forwarded-proto` is typically only set behind a proxy. `Origin`/`Host`
+ * are attacker-controlled, so the result is checked against
+ * `isAllowedOrigin` before being returned — this is a second line of
+ * defense alongside Supabase's own Redirect URLs allowlist. Returns
+ * undefined if there's no host to build from, or if the resolved origin
+ * isn't allowlisted, rather than constructing a malformed or untrusted URL.
  */
 function resolveOrigin(
   headersList: Awaited<ReturnType<typeof headers>>,
 ): string | undefined {
   const origin = headersList.get("origin");
   if (origin) {
-    return origin;
+    return isAllowedOrigin(origin) ? origin : undefined;
   }
 
   const host = headersList.get("host");
@@ -69,7 +73,8 @@ function resolveOrigin(
     headersList.get("x-forwarded-proto") ??
     (isLocalhost(host) ? "http" : "https");
 
-  return `${protocol}://${host}`;
+  const fallbackOrigin = `${protocol}://${host}`;
+  return isAllowedOrigin(fallbackOrigin) ? fallbackOrigin : undefined;
 }
 
 /**
