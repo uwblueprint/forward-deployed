@@ -102,6 +102,22 @@ beforeEach(() => {
 })
 
 describe("getVolunteerDetails", () => {
+  it("never counts a cancelled signup toward hours, even if it was marked attended", async () => {
+    staff()
+    found()
+    mockRegistrations.mockResolvedValue({
+      data: [
+        { id: "r1", status: "registered", attendance_status: "attended", event: event("e1", "2026-10-01T14:00:00.000Z", 3) },
+        { id: "r2", status: "cancelled", attendance_status: "attended", event: event("e2", "2026-10-15T14:00:00.000Z", 2) },
+      ],
+      error: null,
+    })
+
+    const result = await getVolunteerDetails(VOLUNTEER_ID)
+
+    expect(result).toMatchObject({ ok: true, data: { eventsAttended: 1, hours: 3 } })
+  })
+
   it("returns the profile, latest application, and event history with hours", async () => {
     staff()
     found()
