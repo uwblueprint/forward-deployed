@@ -5,7 +5,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(43);
+select plan(46);
 
 insert into auth.users (id, email) values
   ('20000000-0000-0000-0000-0000000000a0', 'admin.a@example.com'),
@@ -73,6 +73,14 @@ select throws_ok($$ select public.reorder_custom_fields('registration', array[
     '70000000-0000-0000-0000-000000000072', '70000000-0000-0000-0000-000000000073', '70000000-0000-0000-0000-000000000074',
     '70000000-0000-0000-0000-000000000075', '70000000-0000-0000-0000-000000000076', '70000000-0000-0000-0000-00000000007b']::uuid[]) $$,
   '22023', null, 'another organization''s question cannot be slipped in');
+select throws_ok($$ select public.reorder_custom_fields('registration', array[
+    '70000000-0000-0000-0000-000000000072', '70000000-0000-0000-0000-000000000072', '70000000-0000-0000-0000-000000000073',
+    '70000000-0000-0000-0000-000000000074', '70000000-0000-0000-0000-000000000075', '70000000-0000-0000-0000-000000000076']::uuid[]) $$,
+  '22023', null, 'a list that repeats a question changes nothing');
+select throws_ok($$ select public.reorder_custom_fields('application', array['70000000-0000-0000-0000-000000000072']::uuid[]) $$,
+  '22023', null, 'a question of the other kind is refused');
+select throws_ok($$ select public.reorder_custom_fields('registration', '{}') $$,
+  '22023', null, 'an empty list is refused while there are questions');
 select lives_ok($$ select public.reorder_custom_fields('registration', array[
     '70000000-0000-0000-0000-000000000072', '70000000-0000-0000-0000-000000000073', '70000000-0000-0000-0000-000000000074',
     '70000000-0000-0000-0000-000000000075', '70000000-0000-0000-0000-000000000076', '70000000-0000-0000-0000-000000000077']::uuid[]) $$,

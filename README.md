@@ -72,6 +72,7 @@ src/
     volunteers/
     events/
     crm/
+    settings/
     reports/
       api/              Server calls for this domain
       components/       UI owned by this domain

@@ -83,7 +83,7 @@ export function TextListEditor({
           id={id}
           ref={inputRef}
           value={draft}
-          placeholder={placeholder ?? `Add a ${noun}`}
+          placeholder={placeholder ?? `Add ${/^[aeiou]/i.test(noun) ? "an" : "a"} ${noun}`}
           disabled={disabled}
           aria-describedby={describedBy}
           aria-invalid={invalid || undefined}

@@ -186,6 +186,13 @@ registrations: `text`, `textarea`, `number`, `date`, `select`, `multiselect`, or
 `checkbox`, each optionally required. Select and multiselect questions need
 options; the other types have none.
 
+Questions are shown in `position` order, then by id. To reorder one kind of
+question, admins call `supabase.rpc("reorder_custom_fields", {
+target_entity_type, ordered_ids })` with every question of that kind in the new
+order. It moves all of them or none: 22023 if the ids aren't exactly the current
+questions (someone added or removed one), 42501 for anyone but an admin. Server
+code can call `reorderCustomFields` from `src/features/settings`.
+
 Answers go in `applications.responses` and `registrations.custom_responses`,
 an object keyed by question id. The database applies the same rules as
 `validateCustomFieldAnswers` in `src/lib/customFieldAnswers.ts`: every required

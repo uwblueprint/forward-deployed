@@ -1,7 +1,6 @@
 -- Reordering custom questions (FOR-118). One call puts an organization's
 -- application or registration questions in the given order, all or nothing,
--- so a failed or interleaved reorder can't leave two questions sharing a
--- position. Admins only, like every other change to custom_fields; it runs
+-- so a failed or interleaved reorder can't leave the list half-moved. Admins only, like every other change to custom_fields; it runs
 -- with the caller's permissions, so RLS still applies.
 --
 -- ordered_ids must be exactly that kind's questions. If one was added or
