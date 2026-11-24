@@ -8,6 +8,9 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(67);
 
+-- Start from no organization, so the suite also passes on a seeded database.
+delete from public.organizations;
+
 insert into auth.users (id, email, email_confirmed_at) values
   ('20000000-0000-0000-0000-0000000000a0', 'admin.a@example.com', now()),
   ('20000000-0000-0000-0000-0000000000a1', 'volunteer.a@example.com', now()),

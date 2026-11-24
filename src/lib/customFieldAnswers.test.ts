@@ -83,4 +83,10 @@ describe("validateCustomFieldAnswers", () => {
     })
     expect(validateCustomFieldAnswers(fields, { f1: ["red", "green"] }).ok).toBe(false)
   })
+
+  it("refuses year 0000, which the database has no date for", () => {
+    const field = { id: "d1", field_name: "Start", field_type: "date", required: false, options: [] } as unknown as Parameters<typeof validateCustomFieldAnswers>[0][number]
+    expect(validateCustomFieldAnswers([field], { d1: "0000-01-01" }).ok).toBe(false)
+    expect(validateCustomFieldAnswers([field], { d1: "0001-01-01" }).ok).toBe(true)
+  })
 })

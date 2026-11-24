@@ -39,6 +39,14 @@ if (!organization) {
   if (createError) fail(`Creating ${orgName} failed: ${createError.message}`)
   organization = created
 
+  console.log(`Created ${organization.name} (${organization.id}).`)
+} else if (orgName && orgName !== organization.name) {
+  console.log(`Using the existing organization, ${organization.name}; --org is only for creating it.`)
+}
+
+// Anyone who signed up before the organization existed has no membership.
+// Checked on every run, so a run that failed halfway is finished by the next.
+{
   const [{ data: users, error: usersError }, { data: members, error: membersError }] = await Promise.all([
     supabase.from("users").select("id"),
     supabase.from("memberships").select("user_id"),
@@ -48,11 +56,9 @@ if (!organization) {
   const early = users.filter((u) => !memberIds.has(u.id)).map((u) => ({ user_id: u.id, organization_id: organization.id }))
   if (early.length) {
     const { error: attachError } = await supabase.from("memberships").insert(early)
-    if (attachError) fail(`Adding earlier signups to ${orgName} failed: ${attachError.message}`)
+    if (attachError) fail(`Adding earlier signups to ${organization.name} failed: ${attachError.message}`)
+    console.log(`Earlier signups who joined ${organization.name} as volunteers: ${early.length}.`)
   }
-  console.log(`Created ${organization.name} (${organization.id}). Earlier signups who joined it as volunteers: ${early.length}.`)
-} else if (orgName && orgName !== organization.name) {
-  console.log(`Using the existing organization, ${organization.name}; --org is only for creating it.`)
 }
 
 if (!email) process.exit(0)
