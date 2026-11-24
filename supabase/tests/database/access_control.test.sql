@@ -78,10 +78,10 @@ insert into public.custom_fields (id, organization_id, entity_type, field_name, 
 select is((select count(*) from pg_tables where schemaname = 'public' and not rowsecurity), 0::bigint,
   'RLS is enabled on every public table');
 select is((select string_agg(p.proname::text, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'),
-  'create_invitation,decide_application,edit_applicant_message,redeem_invitation,registration_count,revoke_invitation,set_user_role', 'the API schema exposes only the intended functions');
+  'create_invitation,decide_application,edit_applicant_message,redeem_invitation,registration_count,reorder_custom_fields,revoke_invitation,set_user_role', 'the API schema exposes only the intended functions');
 select is((select string_agg(p.proname::text, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute')),
-  'create_invitation,decide_application,edit_applicant_message,redeem_invitation,registration_count,revoke_invitation,set_user_role', 'signed-in users can call only those functions');
+  'create_invitation,decide_application,edit_applicant_message,redeem_invitation,registration_count,reorder_custom_fields,revoke_invitation,set_user_role', 'signed-in users can call only those functions');
 select is((select (select count(*) from information_schema.role_table_grants where grantee = 'anon' and table_schema = 'public')
   + (select count(*) from information_schema.column_privileges where grantee = 'anon' and table_schema = 'public')
   + (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public', 'private') and has_function_privilege('anon', p.oid, 'execute'))),
