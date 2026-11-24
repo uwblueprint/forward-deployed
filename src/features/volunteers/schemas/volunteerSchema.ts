@@ -95,3 +95,24 @@ export type VolunteerOnboardingStepTwo = z.infer<typeof stepTwoSchema>
 export type VolunteerOnboardingStepThree = z.infer<typeof stepThreeSchema>
 
 export type VolunteerOnboardingPayload = z.infer<typeof volunteerOnboardingSchema>
+
+// --- Profile edits after onboarding --------------------------------------------
+
+/**
+ * Everything a volunteer or staff member can change on an existing profile.
+ * Consent is never part of it, and name and email live on the users table.
+ */
+export const volunteerProfileUpdateSchema = personalDetailsSchema
+  .merge(availabilitySchema)
+  .merge(skillsSchema)
+  .merge(emergencyContactSchema)
+
+export type VolunteerProfileUpdate = z.infer<typeof volunteerProfileUpdateSchema>
+
+/** A person's name, as collected at signup. */
+export const userNameSchema = z.object({
+  firstName: z.string().trim().min(1, "First name is required"),
+  lastName: z.string().trim().min(1, "Last name is required"),
+})
+
+export type UserName = z.infer<typeof userNameSchema>
