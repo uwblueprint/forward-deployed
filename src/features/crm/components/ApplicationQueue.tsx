@@ -12,7 +12,7 @@ export type ApplicationQueueProps = {
   applications: ApplicationSummary[]
 }
 
-const STATUS_RANK = { pending: 0, rejected: 1, approved: 2 } as const
+const STATUS_LABEL = { pending: "Pending", approved: "Approved", rejected: "Rejected" } as const
 
 const columns: DataTableColumnDef<ApplicationSummary>[] = [
   {
@@ -29,7 +29,8 @@ const columns: DataTableColumnDef<ApplicationSummary>[] = [
   {
     id: "status",
     header: "Status",
-    accessorFn: (a) => STATUS_RANK[a.status],
+    // The label, so searching "pending" finds pending applications.
+    accessorFn: (a) => STATUS_LABEL[a.status],
     cell: ({ row }) => <ApplicationStatusBadge status={row.original.status} />,
   },
   {
@@ -37,12 +38,14 @@ const columns: DataTableColumnDef<ApplicationSummary>[] = [
     id: "submitted",
     header: "Submitted",
     accessorKey: "submittedAt",
+    enableGlobalFilter: false,
     cell: ({ getValue }) => formatDate(getValue<string>()),
   },
   {
     id: "reviewed",
     header: "Reviewed",
     accessorFn: (a) => a.reviewedAt ?? "",
+    enableGlobalFilter: false,
     cell: ({ row }) => formatDate(row.original.reviewedAt),
   },
 ]

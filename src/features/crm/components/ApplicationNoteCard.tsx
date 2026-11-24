@@ -34,7 +34,7 @@ export function ApplicationNoteCard({ applicationId, note }: ApplicationNoteCard
         return
       }
       setEditing(false)
-      router.refresh()
+      startSaving(() => router.refresh())
     })
   }
 
@@ -50,6 +50,7 @@ export function ApplicationNoteCard({ applicationId, note }: ApplicationNoteCard
               size="sm"
               onClick={() => {
                 setDraft(note ?? "")
+                setError(null)
                 setEditing(true)
               }}
             >
@@ -70,7 +71,7 @@ export function ApplicationNoteCard({ applicationId, note }: ApplicationNoteCard
             <label htmlFor={fieldId} className="sr-only">
               Internal note
             </label>
-            <Textarea id={fieldId} value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus />
+            <Textarea id={fieldId} value={draft} maxLength={5000} onChange={(e) => setDraft(e.target.value)} autoFocus />
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>

@@ -20,7 +20,7 @@ function query(table: string) {
     then: (resolve: (r: Result) => unknown, reject: (e: unknown) => unknown) => result().then(resolve, reject),
     maybeSingle: () => result(),
   }
-  for (const method of ["select", "eq", "order"]) {
+  for (const method of ["select", "eq", "order", "range"]) {
     chain[method] = (...args: unknown[]) => {
       calls.push([table, method, args])
       return chain
@@ -57,6 +57,7 @@ function summaryRow(id: string, volunteer: string, status: string, submitted: st
 
 const volunteer = {
   id: "v1",
+  user_id: "u-ana",
   organization_id: "org1",
   phone: "555-0100",
   availability_days: ["monday"],
@@ -141,6 +142,23 @@ describe("listApplications", () => {
     expect(result.ok && result.data.map((a) => a.id)).toEqual(["a2"])
   })
 
+  it("reads every page, so the oldest applications aren't cut off", async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => summaryRow(`a${i}`, `v${i}`, "approved", "2026-11-12T00:00:00Z"))
+    queued.applications = [
+      { data: full, error: null },
+      { data: [summaryRow("oldest-pending", "Zed", "pending", "2026-01-01T00:00:00Z")], error: null },
+    ]
+
+    const result = await listApplications()
+
+    expect(result.ok && result.data).toHaveLength(1001)
+    expect(result.ok && result.data[0].id).toBe("oldest-pending")
+    expect(calls.filter(([, method]) => method === "range").map(([, , args]) => args)).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ])
+  })
+
   it("returns an empty queue", async () => {
     queued.applications = [{ data: [], error: null }]
     await expect(listApplications()).resolves.toEqual({ ok: true, data: [] })
@@ -186,6 +204,7 @@ describe("getApplicationReview", () => {
       data: {
         id: APP_ID,
         status: "pending",
+        isOwn: false,
         isLatest: true,
         latestApplicationId: null,
         canManageNote: false,
@@ -219,6 +238,18 @@ describe("getApplicationReview", () => {
 
     expect(result).toMatchObject({ ok: true, data: { canManageNote: true, note: "Great interview" } })
     expect(calls).toContainEqual(["application_notes", "eq", ["application_id", APP_ID]])
+  })
+
+  it("flags the caller's own application and never loads its note", async () => {
+    mockGetUserRole.mockResolvedValue("admin")
+    mockGetUser.mockResolvedValue({ data: { user: { id: "u-ana" } } })
+    queued.applications = [{ data: applicationRow(), error: null }]
+    queueSiblings()
+
+    const result = await getApplicationReview(APP_ID)
+
+    expect(result).toMatchObject({ ok: true, data: { isOwn: true, canManageNote: false, note: null } })
+    expect(calls.some(([table]) => table === "application_notes")).toBe(false)
   })
 
   it("falls back to the current questions for an application saved before snapshots", async () => {

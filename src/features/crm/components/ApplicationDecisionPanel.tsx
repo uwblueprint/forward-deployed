@@ -35,6 +35,7 @@ export type ApplicationDecisionPanelProps = {
 }
 
 const MESSAGE_LIMIT = 2000
+const NOTE_LIMIT = 5000
 
 /**
  * Approve, reject, change a decision, or fix a rejection's message. Each
@@ -146,10 +147,14 @@ function DecisionDialog({
 
       if (!result.ok) {
         setError(reviewErrorMessage(result.error))
+        // Someone else got there first: load what they did behind the dialog.
+        if (result.error.type === "already-decided" || result.error.type === "not-latest") {
+          startSaving(() => router.refresh())
+        }
         return
       }
       onClose()
-      router.refresh()
+      startSaving(() => router.refresh())
     })
   }
 
@@ -187,7 +192,7 @@ function DecisionDialog({
           {canWriteNote && (
             <div className="flex flex-col gap-2">
               <Label htmlFor={noteId}>Internal note</Label>
-              <Textarea id={noteId} value={note} onChange={(e) => setNote(e.target.value)} aria-describedby={`${noteId}-hint`} />
+              <Textarea id={noteId} value={note} maxLength={NOTE_LIMIT} onChange={(e) => setNote(e.target.value)} aria-describedby={`${noteId}-hint`} />
               <p id={`${noteId}-hint`} className="text-xs text-muted-foreground">
                 Optional. Only admins see it{hasNote ? "; it replaces the current note" : ""}.
               </p>

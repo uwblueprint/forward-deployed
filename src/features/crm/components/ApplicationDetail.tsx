@@ -53,7 +53,12 @@ export function ApplicationDetail({ application }: ApplicationDetailProps) {
         </p>
       </div>
 
-      {application.isLatest ? (
+      {application.isOwn ? (
+        <Alert>
+          <AlertTitle>This is your own application</AlertTitle>
+          <AlertDescription>Another admin or manager has to review it.</AlertDescription>
+        </Alert>
+      ) : application.isLatest ? (
         <ApplicationDecisionPanel
           applicationId={application.id}
           applicantName={name}

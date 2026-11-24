@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { getUserRole } from "@/features/auth"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 
 export type ApplicationNoteError =
@@ -40,6 +41,9 @@ export async function saveApplicationNote(applicationId: string, note: string): 
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: { type: "unauthenticated" } }
+  // RLS hides notes from everyone else, which would read as "nothing to
+  // change" below; say so instead of reporting success.
+  if ((await getUserRole(user)) !== "admin") return { ok: false, error: { type: "not-allowed" } }
 
   const id = parsed.data.applicationId
   const text = parsed.data.note.trim()
@@ -64,6 +68,7 @@ export async function saveApplicationNote(applicationId: string, note: string): 
     // Another admin saved one first; theirs is replaced, as an edit would.
     const retried = await update()
     if (retried.error) return { ok: false, error: { type: "backend", message: retried.error.message } }
+    if (retried.data.length === 0) return { ok: false, error: { type: "not-allowed" } }
     return { ok: true, data: { note: text } }
   }
   if (inserted.error?.code === RLS_VIOLATION) return { ok: false, error: { type: "not-allowed" } }

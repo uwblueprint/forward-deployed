@@ -15,7 +15,7 @@ export function reviewErrorMessage(error: AnyError): string {
     case "not-found":
       return "This application no longer exists."
     case "already-decided":
-      return "Someone else changed this application. Refresh to see its current status."
+      return "Someone else just changed this application. Close this to see its current status."
     case "not-latest":
       return "This volunteer has applied again. Review their latest application instead."
     case "not-rejected":

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { mockGetUser, mockUpdate, mockInsert, mockDelete, updates } = vi.hoisted(() => ({
+const { mockGetUser, mockGetUserRole, mockUpdate, mockInsert, mockDelete, updates } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
+  mockGetUserRole: vi.fn(),
   mockUpdate: vi.fn(),
   mockInsert: vi.fn(),
   mockDelete: vi.fn(),
@@ -25,6 +26,8 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }))
 
+vi.mock("@/features/auth", () => ({ getUserRole: mockGetUserRole }))
+
 import { saveApplicationNote } from "./applicationNotes"
 
 const APP_ID = "6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b"
@@ -33,6 +36,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   updates.length = 0
   mockGetUser.mockResolvedValue({ data: { user: { id: "u1" } } })
+  mockGetUserRole.mockResolvedValue("admin")
 })
 
 describe("saveApplicationNote", () => {
@@ -65,7 +69,16 @@ describe("saveApplicationNote", () => {
     expect(mockUpdate).toHaveBeenCalledTimes(2)
   })
 
-  it("refuses a manager (RLS hides notes and blocks the insert)", async () => {
+  it("refuses a manager before touching notes, even to clear one", async () => {
+    mockGetUserRole.mockResolvedValue("manager")
+
+    await expect(saveApplicationNote(APP_ID, "x")).resolves.toEqual({ ok: false, error: { type: "not-allowed" } })
+    await expect(saveApplicationNote(APP_ID, "")).resolves.toEqual({ ok: false, error: { type: "not-allowed" } })
+    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(mockDelete).not.toHaveBeenCalled()
+  })
+
+  it("refuses an admin the database refuses (their own application)", async () => {
     mockUpdate.mockResolvedValue({ data: [], error: null })
     mockInsert.mockResolvedValue({ error: { code: "42501", message: "row-level security" } })
 

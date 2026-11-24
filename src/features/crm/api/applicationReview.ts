@@ -51,12 +51,14 @@ export interface ApplicationReview {
   reviewedAt: string | null
   reviewer: Pick<Tables<"users">, "first_name" | "last_name"> | null
   applicantMessage: string | null
+  /** The caller's own application. Nobody reviews or annotates their own. */
+  isOwn: boolean
   /** Only the latest application can be decided. */
   isLatest: boolean
   /** The volunteer's latest application, when this one isn't it. */
   latestApplicationId: string | null
   answers: ApplicationAnswer[]
-  /** The caller can read and write internal notes (admins only). */
+  /** The caller can read and write internal notes (admins only, never on their own application). */
   canManageNote: boolean
   /** Always null for managers. */
   note: string | null
@@ -66,6 +68,7 @@ export interface ApplicationReview {
 }
 
 const STAFF_ROLES = ["admin", "manager"]
+const PAGE_SIZE = 1000
 
 const REVIEW_COLUMNS =
   "id, status, submitted_at, reviewed_at, applicant_message, questions, responses, volunteer_id, reviewer:users!applications_reviewed_by_fkey(first_name, last_name), volunteer:volunteers(*, user:users(first_name, last_name, email))"
@@ -88,7 +91,7 @@ async function staffSession() {
   const role = await getUserRole(user)
   if (!role || !STAFF_ROLES.includes(role)) return { ok: false as const, error: { type: "forbidden" as const } }
 
-  return { ok: true as const, supabase, role }
+  return { ok: true as const, supabase, role, userId: user.id }
 }
 
 /**
@@ -105,13 +108,24 @@ export async function listApplications(): Promise<ApplicationReviewResult<Applic
   const session = await staffSession()
   if (!session.ok) return session
 
-  const { data, error } = await session.supabase
-    .from("applications")
-    .select("id, status, submitted_at, reviewed_at, volunteer_id, volunteer:volunteers(user:users(first_name, last_name, email))")
-    .order("submitted_at", { ascending: false })
-    .order("id", { ascending: false })
+  // The API returns at most a page of rows per request (max_rows in
+  // supabase/config.toml), so read every page; stopping at the first would
+  // silently drop the oldest applications, the ones waiting longest.
+  const page = (from: number) =>
+    session.supabase
+      .from("applications")
+      .select("id, status, submitted_at, reviewed_at, volunteer_id, volunteer:volunteers(user:users(first_name, last_name, email))")
+      .order("submitted_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1)
 
-  if (error) return { ok: false, error: { type: "backend", message: error.message } }
+  const data: NonNullable<Awaited<ReturnType<typeof page>>["data"]> = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: rows, error } = await page(from)
+    if (error) return { ok: false, error: { type: "backend", message: error.message } }
+    data.push(...rows)
+    if (rows.length < PAGE_SIZE) break
+  }
 
   const latest = new Map<string, (typeof data)[number]>()
   for (const row of [...data].sort(newestFirst)) {
@@ -163,7 +177,7 @@ export async function getApplicationReview(
 ): Promise<ApplicationReviewResult<ApplicationReview>> {
   const session = await staffSession()
   if (!session.ok) return session
-  const { supabase, role } = session
+  const { supabase, role, userId } = session
 
   // guid, not uuid: Postgres accepts ids that aren't RFC 4122 variants.
   if (!z.guid().safeParse(applicationId).success) return { ok: false, error: { type: "not-found" } }
@@ -177,7 +191,8 @@ export async function getApplicationReview(
   if (error) return { ok: false, error: { type: "backend", message: error.message } }
   if (!application || !application.volunteer) return { ok: false, error: { type: "not-found" } }
 
-  const canManageNote = role === "admin"
+  const isOwn = application.volunteer.user_id === userId
+  const canManageNote = role === "admin" && !isOwn
 
   const [siblings, questions, note] = await Promise.all([
     supabase
@@ -218,6 +233,7 @@ export async function getApplicationReview(
       reviewedAt: application.reviewed_at,
       reviewer: application.reviewer,
       applicantMessage: application.applicant_message,
+      isOwn,
       isLatest: latestId === application.id,
       latestApplicationId: latestId === application.id ? null : latestId,
       answers: (questions.data ?? []).map((q) => ({
