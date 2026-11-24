@@ -69,6 +69,12 @@ describe("VolunteerList", () => {
     ])
   })
 
+  it("links each name to the volunteer's profile", () => {
+    render(<VolunteerList volunteers={volunteers} />)
+    expect(screen.getByRole("link", { name: "Zara Ali" })).toHaveAttribute("href", "/admin/volunteers/v1")
+    expect(screen.getByRole("link", { name: "—" })).toHaveAttribute("href", "/admin/volunteers/v3")
+  })
+
   it("shows placeholders for missing data", () => {
     render(<VolunteerList volunteers={volunteers} />)
     const maya = bodyRows().find((r) => within(r).queryByText("Maya Chen"))!

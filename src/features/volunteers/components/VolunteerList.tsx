@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+
 import { DataTable, type DataTableColumnDef } from "@/components/common/data-table"
 import type { VolunteerWithUser, Weekday } from "@/lib/adapters"
 
@@ -22,7 +24,16 @@ function capitalize(value: string) {
 
 // Structural columns only; visual treatment waits on the CRM designs.
 const columns: DataTableColumnDef<VolunteerWithUser>[] = [
-  { id: "name", header: "Name", accessorFn: (v) => fullName(v) || "—" },
+  {
+    id: "name",
+    header: "Name",
+    accessorFn: (v) => fullName(v) || "—",
+    cell: ({ row, getValue }) => (
+      <Link href={`/admin/volunteers/${row.original.id}`} className="font-medium underline-offset-4 hover:underline">
+        {getValue<string>()}
+      </Link>
+    ),
+  },
   { id: "email", header: "Email", accessorFn: (v) => v.user?.email ?? "—" },
   { id: "status", header: "Status", accessorFn: (v) => capitalize(v.status) },
   { id: "location", header: "Location", accessorFn: (v) => v.location ?? "—" },
