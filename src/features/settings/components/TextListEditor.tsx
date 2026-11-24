@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { PlusIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,8 @@ type TextListEditorProps = {
   id: string
   /** What one entry is called, e.g. "category", for labels and messages. */
   noun: string
+  /** Its plural, e.g. "categories". */
+  plural: string
   values: string[]
   onChange: (values: string[]) => void
   placeholder?: string
@@ -18,10 +20,11 @@ type TextListEditorProps = {
   invalid?: boolean
 }
 
-/** A list of short text entries: type one and press Enter or Add, remove with ×. */
+/** A list of short text entries: type one and press Enter or Add (or just leave the box), remove with ×. */
 export function TextListEditor({
   id,
   noun,
+  plural,
   values,
   onChange,
   placeholder,
@@ -31,6 +34,7 @@ export function TextListEditor({
 }: TextListEditorProps) {
   const [draft, setDraft] = useState("")
   const [hint, setHint] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   function add() {
     const value = draft.trim()
@@ -60,7 +64,11 @@ export function TextListEditor({
                 size="icon-xs"
                 aria-label={`Remove ${value}`}
                 disabled={disabled}
-                onClick={() => onChange(values.filter((item) => item !== value))}
+                onClick={() => {
+                  onChange(values.filter((item) => item !== value))
+                  // The button is about to unmount; keep focus in the editor.
+                  inputRef.current?.focus()
+                }}
               >
                 <XIcon />
               </Button>
@@ -68,11 +76,12 @@ export function TextListEditor({
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-muted-foreground">No {noun}s yet.</p>
+        <p className="text-sm text-muted-foreground">No {plural} yet.</p>
       )}
       <div className="flex max-w-md gap-2">
         <Input
           id={id}
+          ref={inputRef}
           value={draft}
           placeholder={placeholder ?? `Add a ${noun}`}
           disabled={disabled}
@@ -82,6 +91,8 @@ export function TextListEditor({
             setDraft(event.target.value)
             setHint(null)
           }}
+          // Leaving the box adds what was typed, so Save never drops an entry that wasn't "added".
+          onBlur={add}
           onKeyDown={(event) => {
             // Enter adds the entry instead of submitting the surrounding form.
             if (event.key === "Enter") {
@@ -95,7 +106,9 @@ export function TextListEditor({
           Add
         </Button>
       </div>
-      {hint && <p className="text-sm text-muted-foreground">{hint}</p>}
+      <p role="status" className="text-sm text-muted-foreground empty:hidden">
+        {hint}
+      </p>
     </div>
   )
 }

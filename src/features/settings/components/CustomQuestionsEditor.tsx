@@ -42,7 +42,9 @@ export function CustomQuestionsEditor({ entityType, questions }: CustomQuestions
     startTransition(async () => {
       const result = await reorderCustomFieldsAction({ entityType, ids })
       if (!result.ok) setError(errorMessage(result.error))
-      router.refresh()
+      // Inside the transition, so the buttons stay disabled until the new
+      // order arrives and a second quick move can't be built from the old one.
+      startTransition(() => router.refresh())
     })
   }
 

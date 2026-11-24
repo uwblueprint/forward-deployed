@@ -161,6 +161,7 @@ function QuestionForm({
           <TextListEditor
             id={fieldId("options")}
             noun="option"
+            plural="options"
             values={options}
             onChange={setOptions}
             disabled={pending}

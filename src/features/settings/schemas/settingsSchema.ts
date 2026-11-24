@@ -16,10 +16,10 @@ export const TYPES_WITH_OPTIONS: readonly CustomFieldType[] = ["select", "multis
  * A list of non-blank text, like settings.event_categories or a question's
  * options. Entries are trimmed; the same entry twice is refused.
  */
-const textList = (noun: string) =>
+const textList = (noun: string, plural: string) =>
   z
     .array(z.string().trim().min(1, `${noun} can't be blank`).max(200, `${noun} must be 200 characters or fewer`))
-    .max(100, `Keep it to 100 ${noun.toLowerCase()}s or fewer`)
+    .max(100, `Keep it to 100 ${plural} or fewer`)
     .refine((items) => new Set(items.map((item) => item.toLowerCase())).size === items.length, {
       message: `Each ${noun.toLowerCase()} can only appear once`,
     })
@@ -33,8 +33,8 @@ export const organizationSettingsSchema = z.object({
     .max(2000, "Keep the message to 2000 characters or fewer")
     .nullish()
     .transform((value) => value || null),
-  eventCategories: textList("Category"),
-  skills: textList("Skill"),
+  eventCategories: textList("Category", "categories"),
+  skills: textList("Skill", "skills"),
 })
 
 export type OrganizationSettingsInput = z.input<typeof organizationSettingsSchema>
@@ -44,7 +44,7 @@ const questionFieldsSchema = z.object({
   fieldName: z.string().trim().min(1, "Enter the question").max(500, "Keep the question to 500 characters or fewer"),
   fieldType: z.enum(CUSTOM_FIELD_TYPES, "Pick a question type"),
   required: z.boolean(),
-  options: textList("Option").default([]),
+  options: textList("Option", "options").default([]),
 })
 
 // Select and multiselect need options; other types have none. Options left

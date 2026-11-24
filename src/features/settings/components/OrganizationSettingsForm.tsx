@@ -98,6 +98,7 @@ export function OrganizationSettingsForm({ organization }: OrganizationSettingsF
         <TextListEditor
           id="org-eventCategories"
           noun="category"
+          plural="categories"
           values={eventCategories}
           onChange={setEventCategories}
           disabled={pending}
@@ -113,6 +114,7 @@ export function OrganizationSettingsForm({ organization }: OrganizationSettingsF
         <TextListEditor
           id="org-skills"
           noun="skill"
+          plural="skills"
           values={skills}
           onChange={setSkills}
           disabled={pending}

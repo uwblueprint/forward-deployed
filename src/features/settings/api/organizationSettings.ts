@@ -46,7 +46,8 @@ export async function getSettings(): Promise<SettingsResult<SettingsPageData>> {
       .select("*")
       .eq("organization_id", organizationId)
       .order("position")
-      .order("created_at"),
+      // Same tie-break as the questions snapshot the database saves with each answer.
+      .order("id"),
   ])
 
   if (organizationResult.error) return { ok: false, error: fromDatabaseError(organizationResult.error) }
