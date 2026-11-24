@@ -352,6 +352,89 @@ describe("signUpAction", () => {
     );
   });
 
+  it("omits emailRedirectTo when the origin header is spoofed", async () => {
+    mockHeaders.set("origin", "https://evil.com");
+    signUpWithEmail.mockResolvedValue({
+      ok: true,
+      data: { user: { id: "user-1" }, session: null },
+    });
+
+    await signUpAction(
+      { status: "idle" },
+      makeFormData({
+        firstName: "Jane",
+        lastName: "Doe",
+        email: "new@example.com",
+        password: "password123",
+      }),
+    );
+
+    expect(signUpWithEmail).toHaveBeenCalledWith(expect.anything(), undefined);
+  });
+
+  it("omits emailRedirectTo when the host header fallback is spoofed", async () => {
+    mockHeaders.set("x-forwarded-proto", "https");
+    mockHeaders.set("host", "evil.com");
+    signUpWithEmail.mockResolvedValue({
+      ok: true,
+      data: { user: { id: "user-1" }, session: null },
+    });
+
+    await signUpAction(
+      { status: "idle" },
+      makeFormData({
+        firstName: "Jane",
+        lastName: "Doe",
+        email: "new@example.com",
+        password: "password123",
+      }),
+    );
+
+    expect(signUpWithEmail).toHaveBeenCalledWith(expect.anything(), undefined);
+  });
+
+  it("does not fall through to the host fallback when the origin header is spoofed", async () => {
+    mockHeaders.set("origin", "https://evil.com");
+    mockHeaders.set("x-forwarded-proto", "https");
+    mockHeaders.set("host", "forward-deployed.vercel.app");
+    signUpWithEmail.mockResolvedValue({
+      ok: true,
+      data: { user: { id: "user-1" }, session: null },
+    });
+
+    await signUpAction(
+      { status: "idle" },
+      makeFormData({
+        firstName: "Jane",
+        lastName: "Doe",
+        email: "new@example.com",
+        password: "password123",
+      }),
+    );
+
+    expect(signUpWithEmail).toHaveBeenCalledWith(expect.anything(), undefined);
+  });
+
+  it("omits emailRedirectTo when the origin header has embedded userinfo", async () => {
+    mockHeaders.set("origin", "https://evil@forward-deployed.vercel.app");
+    signUpWithEmail.mockResolvedValue({
+      ok: true,
+      data: { user: { id: "user-1" }, session: null },
+    });
+
+    await signUpAction(
+      { status: "idle" },
+      makeFormData({
+        firstName: "Jane",
+        lastName: "Doe",
+        email: "new@example.com",
+        password: "password123",
+      }),
+    );
+
+    expect(signUpWithEmail).toHaveBeenCalledWith(expect.anything(), undefined);
+  });
+
   it("redirects to /dashboard when sign-up establishes a session", async () => {
     signUpWithEmail.mockResolvedValue({
       ok: true,
@@ -484,6 +567,37 @@ describe("resendVerificationEmailAction", () => {
   });
 
   it("omits emailRedirectTo when no origin or host can be determined", async () => {
+    resendVerificationEmail.mockResolvedValue({ ok: true, data: null });
+
+    await resendVerificationEmailAction(
+      { status: "idle" },
+      makeFormData({ email: "person@example.com" }),
+    );
+
+    expect(resendVerificationEmail).toHaveBeenCalledWith(
+      { email: "person@example.com" },
+      undefined,
+    );
+  });
+
+  it("omits emailRedirectTo when the origin header is spoofed", async () => {
+    mockHeaders.set("origin", "https://evil.com");
+    resendVerificationEmail.mockResolvedValue({ ok: true, data: null });
+
+    await resendVerificationEmailAction(
+      { status: "idle" },
+      makeFormData({ email: "person@example.com" }),
+    );
+
+    expect(resendVerificationEmail).toHaveBeenCalledWith(
+      { email: "person@example.com" },
+      undefined,
+    );
+  });
+
+  it("omits emailRedirectTo when the host header fallback is spoofed", async () => {
+    mockHeaders.set("x-forwarded-proto", "https");
+    mockHeaders.set("host", "evil.com");
     resendVerificationEmail.mockResolvedValue({ ok: true, data: null });
 
     await resendVerificationEmailAction(

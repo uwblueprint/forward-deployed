@@ -25,6 +25,14 @@ describe("SignInForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders the Google sign-in button", () => {
+    render(<SignInForm />);
+
+    expect(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    ).toBeInTheDocument();
+  });
+
   it("links to forgot password and register", () => {
     render(<SignInForm />);
 

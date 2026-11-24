@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/common/forms";
 import { fieldError } from "../api/fieldError";
 import { signInAction, type SignInActionState } from "../api/actions";
+import { GoogleAuthButton } from "./GoogleAuthButton";
 
 const initialState: SignInActionState = { status: "idle" };
 
@@ -49,6 +50,8 @@ export function SignInForm() {
           {pending ? "Signing in..." : "Sign in"}
         </Button>
       </form>
+      <p>or</p>
+      <GoogleAuthButton />
       <Link href="/forgot-password">Forgot password?</Link>
       <Link href="/register">Create an account</Link>
     </div>
