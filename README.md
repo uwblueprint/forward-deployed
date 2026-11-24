@@ -40,6 +40,11 @@ different one, e.g. `npm run dev -- -p 43127`.
 | `npm run typecheck` | Generate Next.js route types, then run `tsc --noEmit` |
 | `npm test` | Run the Vitest suite once |
 | `npm run test:watch` | Run Vitest in watch mode |
+| `npm run db:start` | Start the local Supabase stack |
+| `npm run db:stop` | Stop the local Supabase stack |
+| `npm run db:reset` | Rebuild the local database from the migrations |
+| `npm run db:test` | Run the database tests in `supabase/tests/` |
+| `npm run db:status` | Show local URLs and keys |
 | `npm run db:seed` | Fill the database in `.env.local` with demo data |
 | `npm run db:types` | Regenerate `src/lib/supabase/database.types.ts` from the local database |
 | `npm run db:bootstrap-admin` | Create the organization or make someone its admin |
@@ -115,6 +120,36 @@ through the team's secure channel, not Slack plaintext.
 | `SEED_USER_PASSWORD` | `npm run db:seed` | Password for every seed login; dev data only |
 | `NEXT_PUBLIC_DATA_SOURCE` | Server | `supabase` (default) or `mock` for in-memory demo data |
 
+## Local development
+
+Local development runs against a local Supabase stack in Docker, not the
+shared hosted project. Install Docker Desktop and make sure it's running
+before any `db:*` command; on Windows, enable the WSL 2 backend (Settings →
+General → "Use the WSL 2 based engine"), since the Supabase CLI needs it. The
+CLI itself comes from the `supabase` devDependency and the lockfile, so local
+and CI always run the same version.
+
+Daily workflow:
+
+```bash
+npm run db:start   # start the local stack (first run pulls Docker images)
+npm run db:reset   # rebuild the database from supabase/migrations
+npm run db:seed    # add demo data (see "Database" below)
+npm run dev
+npm run db:stop    # when you're done
+```
+
+`db:reset` wipes and rebuilds the local database from the migrations, so any
+local test data is lost — re-run `db:seed` afterwards if you need it back.
+
+Set the variables listed in "Environment variables" above for local use,
+using the URL and keys printed by `npm run db:status` rather than the hosted
+project's.
+
+Studio and Mailpit also run locally; get their URLs from `npm run db:status`.
+Local auth emails render from the templates in `supabase/templates/` — see
+"Auth emails" below.
+
 ## Accounts & ownership
 
 | Service | Owners | Other members |
@@ -139,15 +174,12 @@ change tables from the Supabase dashboard. New tables and functions start with
 no API access, so each migration grants what it needs. Who can read or change
 what is described in `docs/role-model.md`.
 
-Local database (needs Docker):
+See "Local development" above for starting and stopping the local stack.
 
 ```bash
-npx supabase start      # start the local stack
-npx supabase db reset   # rebuild the local database from the migrations
-npx supabase test db    # run the database tests in supabase/tests/
+npm run db:test                # run the database tests in supabase/tests/
 supabase/tests/concurrency.sh  # race two sessions for the last spot and an event delete
-npm run db:types        # regenerate src/lib/supabase/database.types.ts after a reset
-npx supabase stop       # stop the local stack
+npm run db:types               # regenerate src/lib/supabase/database.types.ts after a reset
 ```
 
 Seed data:
@@ -228,9 +260,20 @@ In the Supabase dashboard, under Authentication:
 | Setting | Value |
 | --- | --- |
 | Site URL | `https://forward-deployed.vercel.app` |
-| Redirect URLs | `http://localhost:3000/**`, `https://forward-deployed.vercel.app/**`, `https://forward-deployed-*-forward-deployed.vercel.app/**` |
+| Redirect URLs | `http://localhost:3000/auth/callback**`, `https://forward-deployed.vercel.app/auth/callback**`, `https://forward-deployed-*-forward-deployed.vercel.app/auth/callback**` |
 | Confirm signup template link | `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard` |
 | Reset password template | Show the code with `{{ .Token }}` instead of a link |
+
+Redirect URLs are limited to `/auth/callback` because that's the only path
+the app passes as a redirect. `/auth/confirm` is reached through the email
+template's `{{ .SiteURL }}`, not `redirect_to`, so it isn't affected. If a
+new flow redirects elsewhere, add its path here.
+
+The preview entry matches Vercel's per-deployment preview domains.
+`src/lib/allowed-origin.ts` checks the same origins in code before any
+redirect URL is built, since `Origin`/`Host` headers can be spoofed. If the
+Vercel project or team name changes, update both the dashboard Redirect
+URLs and `allowed-origin.ts`.
 
 Until the confirm signup template is changed from its default, those emails
 still work, but only through `/auth/callback`, and only in the browser the
@@ -242,6 +285,34 @@ Local Supabase uses the templates in `supabase/templates/`, configured in
 they appear at <http://127.0.0.1:54324>. Local signup confirmation is off
 (`enable_confirmations = false`), so only the reset flow can be tested
 locally; signup confirmation is tested against a hosted project.
+
+### Site URL / Redirect URLs by environment
+
+| Environment | Site URL | Redirect URLs | Configured in |
+| --- | --- | --- | --- |
+| Local | `http://127.0.0.1:3000` | `http://127.0.0.1:3000/auth/callback**`, `http://localhost:3000/auth/callback**` | `supabase/config.toml` (`[auth]`), this repo |
+| Production | `https://forward-deployed.vercel.app` | `https://forward-deployed.vercel.app/auth/callback**` | Supabase dashboard, owner-applied |
+| Preview (any PR) | n/a — previews share the production project's Site URL | `https://forward-deployed-*-forward-deployed.vercel.app/auth/callback**` | Supabase dashboard, owner-applied |
+
+Local and hosted are separate Supabase projects with independently
+configured auth settings — the local one only needs to know about
+localhost, since it's never reachable from a preview or production
+deployment.
+
+## Google sign-in
+
+In the Supabase dashboard, under Authentication > Providers:
+
+| Setting | Value |
+| --- | --- |
+| Google provider | Enabled |
+| Client ID | From the Google Cloud OAuth client; entered in the dashboard, never in code |
+| Client Secret | From the Google Cloud OAuth client; entered in the dashboard, never in code |
+
+In Google Cloud Console, add `https://<project-ref>.supabase.co/auth/v1/callback`
+as an authorized redirect URI on the OAuth client.
+
+Not configured for local Supabase; test against a hosted project.
 
 ## Installed UI primitives
 
