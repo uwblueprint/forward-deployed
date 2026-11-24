@@ -71,7 +71,7 @@ export function ApplicationNoteCard({ applicationId, note }: ApplicationNoteCard
             <label htmlFor={fieldId} className="sr-only">
               Internal note
             </label>
-            <Textarea id={fieldId} value={draft} maxLength={5000} onChange={(e) => setDraft(e.target.value)} autoFocus />
+            <Textarea id={fieldId} value={draft} maxLength={5000} className="max-h-60 overflow-y-auto wrap-anywhere" onChange={(e) => setDraft(e.target.value)} autoFocus />
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>

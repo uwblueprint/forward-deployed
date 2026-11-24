@@ -75,7 +75,8 @@ const REVIEW_COLUMNS =
 
 // Same order as private.sync_volunteer_status: latest by submitted_at, then id.
 function newestFirst<T extends { submitted_at: string; id: string }>(a: T, b: T) {
-  if (a.submitted_at !== b.submitted_at) return a.submitted_at < b.submitted_at ? 1 : -1
+  const byTime = Date.parse(b.submitted_at) - Date.parse(a.submitted_at)
+  if (byTime !== 0) return byTime
   return a.id < b.id ? 1 : -1
 }
 
@@ -144,8 +145,9 @@ export async function listApplications(): Promise<ApplicationReviewResult<Applic
   summaries.sort((a, b) => {
     const byStatus = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
     if (byStatus !== 0) return byStatus
-    if (a.status === "pending") return a.submittedAt.localeCompare(b.submittedAt)
-    return b.submittedAt.localeCompare(a.submittedAt)
+    // Compared as times: the same instant can be written with different offsets or precision.
+    const byTime = Date.parse(a.submittedAt) - Date.parse(b.submittedAt)
+    return a.status === "pending" ? byTime : -byTime
   })
 
   return { ok: true, data: summaries }
@@ -194,20 +196,30 @@ export async function getApplicationReview(
   const isOwn = application.volunteer.user_id === userId
   const canManageNote = role === "admin" && !isOwn
 
+  const responses: Record<string, Json | undefined> =
+    typeof application.responses === "object" && application.responses !== null && !Array.isArray(application.responses)
+      ? application.responses
+      : {}
+  const snapshot = asQuestions(application.questions)
+  const answeredIds = Object.keys(responses).filter((key) => z.guid().safeParse(key).success)
+
   const [siblings, questions, note] = await Promise.all([
     supabase
       .from("applications")
       .select("id, status, submitted_at, applicant_message")
       .eq("volunteer_id", application.volunteer_id),
-    // Applications saved before snapshots existed were asked the current questions.
-    asQuestions(application.questions).length > 0
-      ? Promise.resolve({ data: asQuestions(application.questions), error: null })
+    // An application with no snapshot was either asked nothing or saved before
+    // snapshots existed. Only the second kind has answers, so the current
+    // questions are looked up just to label those.
+    snapshot.length > 0 || answeredIds.length === 0
+      ? Promise.resolve({ data: snapshot, error: null })
       : supabase
           .from("custom_fields")
           .select("id, field_name, field_type")
-          .eq("organization_id", application.volunteer.organization_id ?? "")
+          .in("id", answeredIds)
           .eq("entity_type", "application")
-          .order("position"),
+          .order("position")
+          .order("id"),
     canManageNote
       ? supabase.from("application_notes").select("internal_note").eq("application_id", application.id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -218,11 +230,6 @@ export async function getApplicationReview(
 
   const ordered = [...(siblings.data ?? [])].sort(newestFirst)
   const latestId = ordered[0]?.id ?? application.id
-
-  const responses =
-    typeof application.responses === "object" && application.responses !== null && !Array.isArray(application.responses)
-      ? application.responses
-      : {}
 
   return {
     ok: true,

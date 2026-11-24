@@ -20,7 +20,7 @@ function query(table: string) {
     then: (resolve: (r: Result) => unknown, reject: (e: unknown) => unknown) => result().then(resolve, reject),
     maybeSingle: () => result(),
   }
-  for (const method of ["select", "eq", "order", "range"]) {
+  for (const method of ["select", "eq", "in", "order", "range"]) {
     chain[method] = (...args: unknown[]) => {
       calls.push([table, method, args])
       return chain
@@ -124,6 +124,22 @@ describe("listApplications", () => {
       volunteerId: "Ed",
       applicant: person("Ed"),
     })
+  })
+
+  it("orders by time, not by how the timestamp is written", async () => {
+    queued.applications = [
+      {
+        data: [
+          summaryRow("later", "Bo", "pending", "2026-11-01T00:00:00.5+00:00"),
+          summaryRow("earlier", "Cy", "pending", "2026-11-01T00:00:00+00:00"),
+        ],
+        error: null,
+      },
+    ]
+
+    const result = await listApplications()
+
+    expect(result.ok && result.data.map((a) => a.id)).toEqual(["earlier", "later"])
   })
 
   it("breaks a submitted_at tie by id, like the database", async () => {
@@ -262,8 +278,18 @@ describe("getApplicationReview", () => {
     expect(result.ok && result.data.answers).toEqual([
       { questionId: Q1, question: "Why us (today)?", fieldType: "textarea", answer: "To help" },
     ])
-    expect(calls).toContainEqual(["custom_fields", "eq", ["organization_id", "org1"]])
+    expect(calls).toContainEqual(["custom_fields", "in", ["id", [Q1]]])
     expect(calls).toContainEqual(["custom_fields", "eq", ["entity_type", "application"]])
+  })
+
+  it("shows no questions for an application that was asked none, whatever is asked today", async () => {
+    queued.applications = [{ data: applicationRow({ questions: [], responses: {} }), error: null }]
+    queueSiblings()
+
+    const result = await getApplicationReview(APP_ID)
+
+    expect(result.ok && result.data.answers).toEqual([])
+    expect(calls.some(([table]) => table === "custom_fields")).toBe(false)
   })
 
   it("flags an application that has been superseded and lists the others newest first", async () => {

@@ -21,7 +21,7 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
   return (
     <div className="grid gap-1 sm:grid-cols-[10rem_1fr] sm:gap-4">
       <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="text-sm whitespace-pre-wrap">{children || "—"}</dd>
+      <dd className="text-sm wrap-anywhere whitespace-pre-wrap">{children || "—"}</dd>
     </div>
   )
 }
@@ -88,7 +88,7 @@ export function ApplicationDetail({ application }: ApplicationDetailProps) {
             <CardDescription>Shown to the volunteer with their rejection.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm whitespace-pre-wrap">
+            <p className="text-sm wrap-anywhere whitespace-pre-wrap">
               {application.applicantMessage ?? <span className="text-muted-foreground">No message.</span>}
             </p>
           </CardContent>

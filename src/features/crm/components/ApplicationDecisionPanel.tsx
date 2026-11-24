@@ -36,6 +36,8 @@ export type ApplicationDecisionPanelProps = {
 
 const MESSAGE_LIMIT = 2000
 const NOTE_LIMIT = 5000
+// Long text scrolls inside the box instead of pushing the buttons off screen.
+const TEXTAREA_CLASS = "max-h-40 overflow-y-auto wrap-anywhere"
 
 /**
  * Approve, reject, change a decision, or fix a rejection's message. Each
@@ -131,6 +133,12 @@ function DecisionDialog({
   const [note, setNote] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [saving, startSaving] = useTransition()
+  // The status the reviewer saw when they opened the dialog. The page can
+  // refresh behind it, and a decision must never go out against a status
+  // they haven't seen.
+  const [seenStatus] = useState(status)
+  // Set once someone else changed the application: this dialog can only be closed.
+  const [conflict, setConflict] = useState(false)
   const copy = COPY[mode]
   const asksForMessage = mode !== "approved"
 
@@ -139,9 +147,9 @@ function DecisionDialog({
     startSaving(async () => {
       const result =
         mode === "message"
-          ? await editApplicantMessageAction(applicationId, message)
-          : await approveOrRejectApplicationAction(applicationId, mode, message, {
-              expectedStatus: status,
+          ? await editApplicantMessageAction(applicationId, message.trim())
+          : await approveOrRejectApplicationAction(applicationId, mode, message.trim() || undefined, {
+              expectedStatus: seenStatus,
               note: canWriteNote && note.trim() ? note : undefined,
             })
 
@@ -149,6 +157,7 @@ function DecisionDialog({
         setError(reviewErrorMessage(result.error))
         // Someone else got there first: load what they did behind the dialog.
         if (result.error.type === "already-decided" || result.error.type === "not-latest") {
+          setConflict(true)
           startSaving(() => router.refresh())
         }
         return
@@ -160,14 +169,14 @@ function DecisionDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{copy.title(applicantName)}</DialogTitle>
           <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
 
         <form
-          className="flex flex-col gap-4"
+          className="flex min-w-0 flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault()
             submit()
@@ -180,6 +189,7 @@ function DecisionDialog({
                 id={messageId}
                 value={message}
                 maxLength={MESSAGE_LIMIT}
+                className={TEXTAREA_CLASS}
                 onChange={(e) => setMessage(e.target.value)}
                 aria-describedby={`${messageId}-hint`}
               />
@@ -192,7 +202,7 @@ function DecisionDialog({
           {canWriteNote && (
             <div className="flex flex-col gap-2">
               <Label htmlFor={noteId}>Internal note</Label>
-              <Textarea id={noteId} value={note} maxLength={NOTE_LIMIT} onChange={(e) => setNote(e.target.value)} aria-describedby={`${noteId}-hint`} />
+              <Textarea id={noteId} value={note} maxLength={NOTE_LIMIT} className={TEXTAREA_CLASS} onChange={(e) => setNote(e.target.value)} aria-describedby={`${noteId}-hint`} />
               <p id={`${noteId}-hint`} className="text-xs text-muted-foreground">
                 Optional. Only admins see it{hasNote ? "; it replaces the current note" : ""}.
               </p>
@@ -206,8 +216,10 @@ function DecisionDialog({
           )}
 
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" type="button" disabled={saving} />}>Cancel</DialogClose>
-            <Button type="submit" variant={mode === "rejected" ? "destructive" : "default"} disabled={saving}>
+            <DialogClose render={<Button variant="outline" type="button" disabled={saving} />}>
+              {conflict ? "Close" : "Cancel"}
+            </DialogClose>
+            <Button type="submit" variant={mode === "rejected" ? "destructive" : "default"} disabled={saving || conflict}>
               {saving ? "Saving…" : copy.confirm}
             </Button>
           </DialogFooter>
