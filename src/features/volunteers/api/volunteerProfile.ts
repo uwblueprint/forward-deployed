@@ -66,6 +66,10 @@ export async function updateVolunteerProfile(
     return { ok: false, error: { type: "validation", fieldErrors: z.flattenError(parsed.error).fieldErrors } }
   }
 
+  // A malformed id can't match anyone. Checked here so Postgres's own
+  // complaint about it never travels back to the browser.
+  if (!z.guid().safeParse(volunteerId).success) return { ok: false, error: { type: "not-found" } }
+
   const supabase = await createServerSupabaseClient()
   const {
     data: { user },

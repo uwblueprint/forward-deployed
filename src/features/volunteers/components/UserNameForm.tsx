@@ -49,6 +49,10 @@ export function UserNameForm({ userId, initialValues, onSaved, onCancel }: UserN
         setErrors(result.error.fieldErrors)
       } else if (result.error.type === "forbidden") {
         setFormError("Only admins can rename other people.")
+      } else if (result.error.type === "not-found") {
+        setFormError("This person isn't in your organization anymore.")
+      } else if (result.error.type === "unauthenticated") {
+        setFormError("Your session has expired. Sign in again to save.")
       } else {
         setFormError("Couldn't save the name. Try again.")
       }

@@ -130,7 +130,8 @@ export async function getVolunteerDetails(
           ]
         : []
     )
-    .sort((a, b) => b.event.starts_at.localeCompare(a.event.starts_at))
+    // Compared as times: the same instant can be written with different offsets.
+    .sort((a, b) => Date.parse(b.event.starts_at) - Date.parse(a.event.starts_at))
 
   const attended = events.filter((item) => item.attendance === "attended")
   const hours = attended.reduce(

@@ -9,8 +9,8 @@ export type VolunteerListProps = {
   volunteers: VolunteerWithUser[]
 }
 
-// Fixed locale and zone so server and client render the same text.
-const joinedFormat = new Intl.DateTimeFormat("en-CA", { dateStyle: "medium", timeZone: "UTC" })
+// Fixed locale and zone so server and client render the same text. Same zone as the profile page.
+const joinedFormat = new Intl.DateTimeFormat("en-CA", { dateStyle: "medium", timeZone: "America/Toronto" })
 
 const WEEKDAY_ORDER: Weekday[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 

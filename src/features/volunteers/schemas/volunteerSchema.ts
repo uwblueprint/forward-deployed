@@ -111,8 +111,8 @@ export type VolunteerProfileUpdate = z.infer<typeof volunteerProfileUpdateSchema
 
 /** A person's name, as collected at signup. */
 export const userNameSchema = z.object({
-  firstName: z.string().trim().min(1, "First name is required"),
-  lastName: z.string().trim().min(1, "Last name is required"),
+  firstName: z.string().trim().min(1, "First name is required").max(100, "Keep the first name to 100 characters or fewer"),
+  lastName: z.string().trim().min(1, "Last name is required").max(100, "Keep the last name to 100 characters or fewer"),
 })
 
 export type UserName = z.infer<typeof userNameSchema>

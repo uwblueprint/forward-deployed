@@ -196,7 +196,7 @@ export function VolunteerProfile({ details, canRename }: VolunteerProfileProps) 
           <CardTitle>Event history</CardTitle>
           <CardDescription>
             {eventsAttended} {eventsAttended === 1 ? "event" : "events"} attended · {hoursFormat.format(hours)}{" "}
-            {hours === 1 ? "hour" : "hours"}
+            {hoursFormat.format(hours) === "1" ? "hour" : "hours"}
           </CardDescription>
         </CardHeader>
         <CardContent>
