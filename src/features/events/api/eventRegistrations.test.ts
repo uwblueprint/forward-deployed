@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { mockGetUser, mockGetUserRole, mockEventMaybeSingle, mockRegistrations, mockUpdate, updateCalls, calls } = vi.hoisted(() => ({
+const { mockGetUser, mockGetUserRole, mockEventMaybeSingle, mockRegistrations, mockRead, mockUpdate, updateCalls, calls } = vi.hoisted(() => ({
+  mockRead: vi.fn(),
   mockUpdate: vi.fn(),
   updateCalls: [] as [string, unknown[]][],
   mockGetUser: vi.fn(),
@@ -23,6 +24,7 @@ function registrationsQuery() {
     calls.push(["order", args])
     return mockRegistrations()
   }
+  query.maybeSingle = mockRead
   query.update = (...args: unknown[]) => {
     updateCalls.push(["update", args])
     const chain: Record<string, unknown> = {}
@@ -153,14 +155,20 @@ describe("getEventRegistrations", () => {
 
 describe("setAttendance", () => {
   const REGISTRATION_ID = "50000000-0000-4000-8000-0000000000a1"
+  const started = { status: "registered", event: { starts_at: "2020-01-01T09:00:00+00:00" } }
+
+  beforeEach(() => {
+    mockRead.mockResolvedValue({ data: started, error: null })
+  })
 
   it("marks a registration attended and returns it", async () => {
     const updated = { ...rows[0], attendance_status: "attended" }
     mockUpdate.mockResolvedValue({ data: updated, error: null })
     await expect(setAttendance(REGISTRATION_ID, "attended")).resolves.toEqual({ ok: true, data: updated })
-    expect(updateCalls.slice(0, 2)).toEqual([
+    expect(updateCalls.slice(0, 3)).toEqual([
       ["update", [{ attendance_status: "attended" }]],
       ["eq", ["id", REGISTRATION_ID]],
+      ["eq", ["status", "registered"]],
     ])
   })
 
@@ -192,6 +200,42 @@ describe("setAttendance", () => {
   })
 
   it("reports another organization's registration (hidden by RLS) as not found", async () => {
+    mockRead.mockResolvedValue({ data: null, error: null })
+    await expect(setAttendance(REGISTRATION_ID, "attended")).resolves.toEqual({ ok: false, error: { type: "not-found" } })
+    expect(updateCalls).toEqual([])
+  })
+
+  it("refuses a cancelled registration without writing", async () => {
+    mockRead.mockResolvedValue({ data: { ...started, status: "cancelled" }, error: null })
+    await expect(setAttendance(REGISTRATION_ID, "attended")).resolves.toEqual({
+      ok: false,
+      error: { type: "attendance-not-allowed", reason: "registration-cancelled" },
+    })
+    expect(updateCalls).toEqual([])
+  })
+
+  it("refuses an event that hasn't started without writing", async () => {
+    mockRead.mockResolvedValue({ data: { ...started, event: { starts_at: "2099-01-01T09:00:00+00:00" } }, error: null })
+    await expect(setAttendance(REGISTRATION_ID, "no_show")).resolves.toEqual({
+      ok: false,
+      error: { type: "attendance-not-allowed", reason: "event-not-started" },
+    })
+    expect(updateCalls).toEqual([])
+  })
+
+  it("refuses if the registration was cancelled between the check and the write", async () => {
+    mockRead
+      .mockResolvedValueOnce({ data: started, error: null })
+      .mockResolvedValueOnce({ data: { status: "cancelled" }, error: null })
+    mockUpdate.mockResolvedValue({ data: null, error: null })
+    await expect(setAttendance(REGISTRATION_ID, "attended")).resolves.toEqual({
+      ok: false,
+      error: { type: "attendance-not-allowed", reason: "registration-cancelled" },
+    })
+  })
+
+  it("reports a registration removed between the check and the write as not found", async () => {
+    mockRead.mockResolvedValueOnce({ data: started, error: null }).mockResolvedValueOnce({ data: null, error: null })
     mockUpdate.mockResolvedValue({ data: null, error: null })
     await expect(setAttendance(REGISTRATION_ID, "attended")).resolves.toEqual({ ok: false, error: { type: "not-found" } })
   })

@@ -18,6 +18,8 @@ export type EventRegistrationsError =
   | { type: "unauthenticated" }
   | { type: "forbidden" }
   | { type: "not-found" }
+  /** Attendance only counts for registered volunteers at events that have started (hours = length x attended). */
+  | { type: "attendance-not-allowed"; reason: "event-not-started" | "registration-cancelled" }
   | { type: "backend"; message: string }
 
 export type EventRegistrationsResult<T> =
@@ -105,6 +107,8 @@ const RLS_VIOLATION = "42501"
 /**
  * Staff-only. Records or corrects a registration's attendance. Another
  * organization's registration is hidden by RLS and reads as not found.
+ * Refused for cancelled registrations and events that haven't started,
+ * since either would inflate the volunteer's hours.
  */
 export async function setAttendance(
   registrationId: string,
@@ -124,16 +128,39 @@ export async function setAttendance(
   const role = await getUserRole(user)
   if (!role || !STAFF_ROLES.includes(role)) return { ok: false, error: { type: "forbidden" } }
 
+  const { data: current, error: readError } = await supabase
+    .from("registrations")
+    .select("status, event:events(starts_at)")
+    .eq("id", registrationId)
+    .maybeSingle()
+  if (readError) return { ok: false, error: { type: "backend", message: readError.message } }
+  if (!current?.event) return { ok: false, error: { type: "not-found" } }
+  if (current.status === "cancelled") {
+    return { ok: false, error: { type: "attendance-not-allowed", reason: "registration-cancelled" } }
+  }
+  if (new Date(current.event.starts_at).getTime() > Date.now()) {
+    return { ok: false, error: { type: "attendance-not-allowed", reason: "event-not-started" } }
+  }
+
+  // Only while still registered, so a cancellation between the read and the write can't slip through.
   const { data, error } = await supabase
     .from("registrations")
     .update({ attendance_status: parsed.data.attendance })
     .eq("id", registrationId)
+    .eq("status", "registered")
     .select(REGISTRATION_COLUMNS)
     .maybeSingle()
   if (error) {
     if (error.code === RLS_VIOLATION) return { ok: false, error: { type: "forbidden" } }
     return { ok: false, error: { type: "backend", message: error.message } }
   }
-  if (!data) return { ok: false, error: { type: "not-found" } }
+  if (!data) {
+    // Nothing matched: it was cancelled or removed after the read. Say which.
+    const { data: after } = await supabase.from("registrations").select("status").eq("id", registrationId).maybeSingle()
+    if (after?.status === "cancelled") {
+      return { ok: false, error: { type: "attendance-not-allowed", reason: "registration-cancelled" } }
+    }
+    return { ok: false, error: { type: "not-found" } }
+  }
   return { ok: true, data }
 }
