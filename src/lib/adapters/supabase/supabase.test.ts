@@ -7,7 +7,7 @@ function fakeClient(result: { data: unknown; error: unknown }) {
   const calls: [string, unknown[]][] = []
   // Only the query is awaitable, like supabase-js; the client itself isn't.
   const query: Record<string, unknown> = { then: (resolve: (value: unknown) => unknown) => resolve(result) }
-  for (const method of ["select", "insert", "update", "eq", "order", "single", "maybeSingle"]) {
+  for (const method of ["select", "insert", "update", "eq", "order", "range", "single", "maybeSingle"]) {
     query[method] = (...args: unknown[]) => {
       calls.push([method, args])
       return query
@@ -30,6 +30,27 @@ describe("SupabaseVolunteerRepository", () => {
     expect(calls).toEqual([["from", ["volunteers"]], ["select", []], ["eq", ["id", "v1"]], ["maybeSingle", []]])
   })
 
+  it("reads every page of volunteers, not just the first thousand", async () => {
+    const pages = [Array.from({ length: 1000 }, (_, i) => ({ id: `v${i}` })), [{ id: "last" }]]
+    const ranges: unknown[][] = []
+    const query: Record<string, unknown> = {}
+    for (const method of ["select", "order"]) query[method] = () => query
+    query.range = (...args: unknown[]) => {
+      ranges.push(args)
+      return Promise.resolve({ data: pages.shift(), error: null })
+    }
+    const factory = vi.fn(async () => ({ from: () => query })) as unknown as ClientFactory
+
+    const volunteers = await new SupabaseVolunteerRepository(factory).getAllWithUser()
+
+    expect(volunteers).toHaveLength(1001)
+    expect(volunteers.at(-1)).toEqual({ id: "last" })
+    expect(ranges).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ])
+  })
+
   it("embeds each volunteer's user as `user`", async () => {
     const { factory, calls } = fakeClient({ data: [], error: null })
     await new SupabaseVolunteerRepository(factory).getAllWithUser()
@@ -37,6 +58,8 @@ describe("SupabaseVolunteerRepository", () => {
       ["from", ["volunteers"]],
       ["select", ["*, user:users(first_name, last_name, email)"]],
       ["order", ["created_at"]],
+      ["order", ["id"]],
+      ["range", [0, 999]],
     ])
   })
 

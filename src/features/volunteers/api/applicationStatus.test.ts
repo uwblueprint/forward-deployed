@@ -24,7 +24,7 @@ vi.mock("@/lib/supabase/server", () => ({
         return { select: () => ({ eq: () => ({ maybeSingle: mockMembershipMaybeSingle }) }) }
       }
       if (table === "custom_fields") {
-        return { select: () => ({ eq: () => ({ eq: () => ({ order: mockFieldsOrder }) }) }) }
+        return { select: () => ({ eq: () => ({ eq: () => ({ order: () => ({ order: mockFieldsOrder }) }) }) }) }
       }
       if (table === "volunteers") {
         return { select: () => ({ eq: () => ({ maybeSingle: mockVolunteerMaybeSingle }) }) }
