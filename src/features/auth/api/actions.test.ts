@@ -182,6 +182,48 @@ describe("signInAction", () => {
     expect(redirect).toHaveBeenCalledWith("/dashboard");
   });
 
+  it("redirects to a safe next path instead of the role-based path", async () => {
+    signInWithEmail.mockResolvedValue({
+      ok: true,
+      data: { user: { id: "user-1" }, session: {} },
+    });
+    getUserRole.mockResolvedValue("volunteer");
+
+    await expect(
+      signInAction(
+        { status: "idle" },
+        makeFormData({
+          email: "person@example.com",
+          password: "password123",
+          next: "/settings",
+        }),
+      ),
+    ).rejects.toThrow(RedirectError);
+
+    expect(redirect).toHaveBeenCalledWith("/settings");
+  });
+
+  it("falls back to the role-based path for an unsafe next", async () => {
+    signInWithEmail.mockResolvedValue({
+      ok: true,
+      data: { user: { id: "user-1" }, session: {} },
+    });
+    getUserRole.mockResolvedValue("admin");
+
+    await expect(
+      signInAction(
+        { status: "idle" },
+        makeFormData({
+          email: "person@example.com",
+          password: "password123",
+          next: "//evil.com",
+        }),
+      ),
+    ).rejects.toThrow(RedirectError);
+
+    expect(redirect).toHaveBeenCalledWith("/admin/dashboard");
+  });
+
   it("redirects to /dashboard without calling getUserRole when sign-in returns no user", async () => {
     signInWithEmail.mockResolvedValue({
       ok: true,
@@ -274,7 +316,7 @@ describe("signUpAction", () => {
       },
       {
         emailRedirectTo:
-          "https://forward-deployed.vercel.app/auth/callback?next=/dashboard",
+          "https://forward-deployed.vercel.app/auth/callback?next=%2Fdashboard",
       },
     );
   });
@@ -299,7 +341,7 @@ describe("signUpAction", () => {
 
     expect(signUpWithEmail).toHaveBeenCalledWith(expect.anything(), {
       emailRedirectTo:
-        "https://forward-deployed.vercel.app/auth/callback?next=/dashboard",
+        "https://forward-deployed.vercel.app/auth/callback?next=%2Fdashboard",
     });
   });
 
@@ -321,7 +363,7 @@ describe("signUpAction", () => {
     );
 
     expect(signUpWithEmail).toHaveBeenCalledWith(expect.anything(), {
-      emailRedirectTo: "http://localhost:3000/auth/callback?next=/dashboard",
+      emailRedirectTo: "http://localhost:3000/auth/callback?next=%2Fdashboard",
     });
   });
 
@@ -433,6 +475,75 @@ describe("signUpAction", () => {
     );
 
     expect(signUpWithEmail).toHaveBeenCalledWith(expect.anything(), undefined);
+  });
+
+  it("embeds a safe next (url-encoded) in emailRedirectTo", async () => {
+    mockHeaders.set("origin", "https://forward-deployed.vercel.app");
+    signUpWithEmail.mockResolvedValue({
+      ok: true,
+      data: { user: { id: "user-1" }, session: null },
+    });
+
+    await signUpAction(
+      { status: "idle" },
+      makeFormData({
+        firstName: "Jane",
+        lastName: "Doe",
+        email: "new@example.com",
+        password: "password123",
+        next: "/auth/invite?token=abc",
+      }),
+    );
+
+    expect(signUpWithEmail).toHaveBeenCalledWith(expect.anything(), {
+      emailRedirectTo: `https://forward-deployed.vercel.app/auth/callback?next=${encodeURIComponent("/auth/invite?token=abc")}`,
+    });
+  });
+
+  it("falls back to /dashboard in emailRedirectTo for an unsafe next", async () => {
+    mockHeaders.set("origin", "https://forward-deployed.vercel.app");
+    signUpWithEmail.mockResolvedValue({
+      ok: true,
+      data: { user: { id: "user-1" }, session: null },
+    });
+
+    await signUpAction(
+      { status: "idle" },
+      makeFormData({
+        firstName: "Jane",
+        lastName: "Doe",
+        email: "new@example.com",
+        password: "password123",
+        next: "//evil.com",
+      }),
+    );
+
+    expect(signUpWithEmail).toHaveBeenCalledWith(expect.anything(), {
+      emailRedirectTo:
+        "https://forward-deployed.vercel.app/auth/callback?next=%2Fdashboard",
+    });
+  });
+
+  it("redirects to a safe next when sign-up establishes a session immediately", async () => {
+    signUpWithEmail.mockResolvedValue({
+      ok: true,
+      data: { user: { id: "user-1" }, session: { access_token: "token" } },
+    });
+
+    await expect(
+      signUpAction(
+        { status: "idle" },
+        makeFormData({
+          firstName: "Jane",
+          lastName: "Doe",
+          email: "new@example.com",
+          password: "password123",
+          next: "/settings",
+        }),
+      ),
+    ).rejects.toThrow(RedirectError);
+
+    expect(redirect).toHaveBeenCalledWith("/settings");
   });
 
   it("redirects to /dashboard when sign-up establishes a session", async () => {

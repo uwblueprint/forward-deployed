@@ -3,15 +3,24 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const signUpAction = vi.fn();
+const signInWithOAuth = vi.fn();
 
 vi.mock("../api/actions", () => ({
   signUpAction: (...args: unknown[]) => signUpAction(...args),
+}));
+
+vi.mock("@/lib/supabase/client", () => ({
+  createBrowserSupabaseClient: () => ({
+    auth: { signInWithOAuth: (...args: unknown[]) => signInWithOAuth(...args) },
+  }),
 }));
 
 import { SignUpForm } from "./SignUpForm";
 
 beforeEach(() => {
   signUpAction.mockReset();
+  signInWithOAuth.mockReset();
+  signInWithOAuth.mockResolvedValue({ error: null });
 });
 
 describe("SignUpForm", () => {
@@ -41,6 +50,42 @@ describe("SignUpForm", () => {
     expect(
       screen.getByRole("link", { name: "Already have an account? Log in" }),
     ).toHaveAttribute("href", "/login");
+  });
+
+  it("includes an empty hidden next field when no next is passed", () => {
+    render(<SignUpForm />);
+
+    expect(document.querySelector('input[name="next"]')).toHaveValue("");
+  });
+
+  it("includes the next value in a hidden field and forwards it to login", () => {
+    render(<SignUpForm next="/auth/invite?token=abc" />);
+
+    expect(document.querySelector('input[name="next"]')).toHaveValue(
+      "/auth/invite?token=abc",
+    );
+    expect(
+      screen.getByRole("link", { name: "Already have an account? Log in" }),
+    ).toHaveAttribute(
+      "href",
+      `/login?next=${encodeURIComponent("/auth/invite?token=abc")}`,
+    );
+  });
+
+  it("passes next through to the Google sign-in button", async () => {
+    const user = userEvent.setup();
+    render(<SignUpForm next="/auth/invite?token=abc" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    );
+
+    expect(signInWithOAuth).toHaveBeenCalledWith({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/auth/invite?token=abc")}`,
+      },
+    });
   });
 
   it("shows field errors from the returned state", async () => {

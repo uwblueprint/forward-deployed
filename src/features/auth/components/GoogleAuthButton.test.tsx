@@ -37,6 +37,24 @@ describe("GoogleAuthButton", () => {
     });
   });
 
+  it("appends an encoded next to the callback redirect when provided", async () => {
+    signInWithOAuth.mockResolvedValue({ error: null });
+
+    const user = userEvent.setup();
+    render(<GoogleAuthButton next="/auth/invite?token=a&b" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    );
+
+    expect(signInWithOAuth).toHaveBeenCalledWith({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/auth/invite?token=a&b")}`,
+      },
+    });
+  });
+
   it("shows the error returned by signInWithOAuth", async () => {
     signInWithOAuth.mockResolvedValue({
       error: { message: "Unable to reach Google" },

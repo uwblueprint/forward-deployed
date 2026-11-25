@@ -3,15 +3,24 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const signInAction = vi.fn();
+const signInWithOAuth = vi.fn();
 
 vi.mock("../api/actions", () => ({
   signInAction: (...args: unknown[]) => signInAction(...args),
+}));
+
+vi.mock("@/lib/supabase/client", () => ({
+  createBrowserSupabaseClient: () => ({
+    auth: { signInWithOAuth: (...args: unknown[]) => signInWithOAuth(...args) },
+  }),
 }));
 
 import { SignInForm } from "./SignInForm";
 
 beforeEach(() => {
   signInAction.mockReset();
+  signInWithOAuth.mockReset();
+  signInWithOAuth.mockResolvedValue({ error: null });
 });
 
 describe("SignInForm", () => {
@@ -42,6 +51,42 @@ describe("SignInForm", () => {
     expect(
       screen.getByRole("link", { name: "Create an account" }),
     ).toHaveAttribute("href", "/register");
+  });
+
+  it("includes an empty hidden next field when no next is passed", () => {
+    render(<SignInForm />);
+
+    expect(document.querySelector('input[name="next"]')).toHaveValue("");
+  });
+
+  it("includes the next value in a hidden field and forwards it to register", () => {
+    render(<SignInForm next="/auth/invite?token=abc" />);
+
+    expect(document.querySelector('input[name="next"]')).toHaveValue(
+      "/auth/invite?token=abc",
+    );
+    expect(
+      screen.getByRole("link", { name: "Create an account" }),
+    ).toHaveAttribute(
+      "href",
+      `/register?next=${encodeURIComponent("/auth/invite?token=abc")}`,
+    );
+  });
+
+  it("passes next through to the Google sign-in button", async () => {
+    const user = userEvent.setup();
+    render(<SignInForm next="/auth/invite?token=abc" />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    );
+
+    expect(signInWithOAuth).toHaveBeenCalledWith({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/auth/invite?token=abc")}`,
+      },
+    });
   });
 
   it("shows field errors from the returned state", async () => {

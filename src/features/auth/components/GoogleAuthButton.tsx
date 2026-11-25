@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
-export function GoogleAuthButton() {
+export function GoogleAuthButton({ next }: { next?: string }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,10 +14,13 @@ export function GoogleAuthButton() {
 
     try {
       const supabase = createBrowserSupabaseClient();
+      const callbackUrl = `${window.location.origin}/auth/callback`;
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: next
+            ? `${callbackUrl}?next=${encodeURIComponent(next)}`
+            : callbackUrl,
         },
       });
 

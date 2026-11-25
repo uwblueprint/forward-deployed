@@ -81,6 +81,10 @@ src/
       schemas/          Validation schemas
       types/            Domain types
       index.ts          Public barrel — the only supported import path
+    team/
+      api/              Server calls for this domain
+      types/            Domain types
+      index.ts          Public barrel — the only supported import path
   components/
     ui/                 Base atomic shadcn primitives
     common/             Un-opinionated composed patterns

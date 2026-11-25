@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isAllowedOrigin } from "@/lib/allowed-origin";
+import { getSafeRedirectPath } from "@/lib/safe-redirect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   requestPasswordReset,
@@ -201,9 +202,11 @@ export async function signInAction(
   }
 
   const user = result.data.user;
-  const redirectPath = user
-    ? await resolveSignInRedirect(user)
-    : "/dashboard";
+  const fallback = user ? await resolveSignInRedirect(user) : "/dashboard";
+  const redirectPath = getSafeRedirectPath(
+    String(formData.get("next") ?? ""),
+    fallback,
+  );
 
   redirect(redirectPath);
 }
@@ -214,6 +217,10 @@ export async function signUpAction(
 ): Promise<SignUpActionState> {
   const headersList = await headers();
   const origin = resolveOrigin(headersList);
+  const safeNext = getSafeRedirectPath(
+    String(formData.get("next") ?? ""),
+    "/dashboard",
+  );
 
   const result = await signUpWithEmail(
     {
@@ -223,7 +230,9 @@ export async function signUpAction(
       password: String(formData.get("password") ?? ""),
     },
     origin
-      ? { emailRedirectTo: `${origin}/auth/callback?next=/dashboard` }
+      ? {
+          emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(safeNext)}`,
+        }
       : undefined,
   );
 
@@ -234,7 +243,7 @@ export async function signUpAction(
   }
 
   if (result.data.session) {
-    redirect("/dashboard");
+    redirect(safeNext);
   }
 
   return {

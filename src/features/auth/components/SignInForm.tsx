@@ -10,7 +10,7 @@ import { GoogleAuthButton } from "./GoogleAuthButton";
 
 const initialState: SignInActionState = { status: "idle" };
 
-export function SignInForm() {
+export function SignInForm({ next }: { next?: string }) {
   // Email is controlled so it survives React 19's
   // post-action form reset after a failed submit. Password is deliberately
   // uncontrolled so it's cleared, not repopulated. Don't make it controlled.
@@ -27,6 +27,7 @@ export function SignInForm() {
     <div>
       <h1>Log in</h1>
       <form action={formAction}>
+        <input type="hidden" name="next" value={next ?? ""} />
         <FormField
           label="Email"
           name="email"
@@ -51,9 +52,11 @@ export function SignInForm() {
         </Button>
       </form>
       <p>or</p>
-      <GoogleAuthButton />
+      <GoogleAuthButton next={next} />
       <Link href="/forgot-password">Forgot password?</Link>
-      <Link href="/register">Create an account</Link>
+      <Link href={next ? `/register?next=${encodeURIComponent(next)}` : "/register"}>
+        Create an account
+      </Link>
     </div>
   );
 }
