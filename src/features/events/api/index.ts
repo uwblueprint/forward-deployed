@@ -9,6 +9,7 @@ export {
   getMyVolunteerStatusAction,
   getOpportunitiesAction,
   registerForEventAction,
+  setAttendanceAction,
   updateEventAction,
 } from "./actions"
 export type {
@@ -21,6 +22,7 @@ export type {
 } from "./eventDetails"
 export type { EventTransitionError, EventTransitionResult } from "./eventLifecycle"
 export type {
+  AttendanceStatus,
   EventRegistration,
   EventRegistrationsError,
   EventRegistrationsFilter,

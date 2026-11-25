@@ -7,8 +7,13 @@ import { getEventDetails, getMyVolunteerStatus } from "./eventDetails"
 import type { EventDetails, EventDetailsResult, VolunteerStatusResult } from "./eventDetails"
 import { changeEventStatus } from "./eventLifecycle"
 import type { EventTransitionResult } from "./eventLifecycle"
-import { getEventRegistrations } from "./eventRegistrations"
-import type { EventRegistration, EventRegistrationsFilter, EventRegistrationsResult } from "./eventRegistrations"
+import { getEventRegistrations, setAttendance } from "./eventRegistrations"
+import type {
+  AttendanceStatus,
+  EventRegistration,
+  EventRegistrationsFilter,
+  EventRegistrationsResult,
+} from "./eventRegistrations"
 import { getEvents, getMyEvents, getOpportunities } from "./events"
 import type { EventQueryResult, MyEvents, MyEventsResult, OpportunityFilters, StaffEventFilters } from "./events"
 import { createEvent, updateEvent } from "./manageEvents"
@@ -76,4 +81,11 @@ export async function getEventRegistrationsAction(
   filter: EventRegistrationsFilter = {}
 ): Promise<EventRegistrationsResult<EventRegistration[]>> {
   return getEventRegistrations(eventId, filter)
+}
+
+export async function setAttendanceAction(
+  registrationId: string,
+  attendance: AttendanceStatus
+): Promise<EventRegistrationsResult<EventRegistration>> {
+  return setAttendance(registrationId, attendance)
 }

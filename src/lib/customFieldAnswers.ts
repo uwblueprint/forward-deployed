@@ -1,4 +1,5 @@
 import type { Json, Tables } from "@/lib/supabase/database.types"
+import { isPlainObject } from "@/lib/isPlainObject"
 
 export type CustomField = Tables<"custom_fields">
 
@@ -57,10 +58,7 @@ function matchesFieldType(field: CustomField, value: unknown): boolean {
  * organization actually asked.
  */
 export function validateCustomFieldAnswers(fields: CustomField[], answers: unknown): CustomFieldAnswersResult {
-  const source: Record<string, unknown> =
-    typeof answers === "object" && answers !== null && !Array.isArray(answers)
-      ? (answers as Record<string, unknown>)
-      : {}
+  const source: Record<string, unknown> = isPlainObject(answers) ? answers : {}
 
   const fieldErrors: Record<string, string[]> = {}
   const data: Record<string, Json> = {}
