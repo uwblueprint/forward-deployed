@@ -1,1 +1,6 @@
 src/lib/supabase/database.types.ts linguist-generated=true
+
+# pgTAP tests compare multi-line SQL literals byte-for-byte against E'\n'-joined
+# query results. A Windows checkout's CRLF would silently break that
+# comparison without this - see supabase/tests/database/access_control.test.sql.
+*.sql text eol=lf

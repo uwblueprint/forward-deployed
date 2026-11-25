@@ -1,5 +1,7 @@
 "use server"
 
+import { deleteDraft, loadDraft, saveDraft } from "./applicationDrafts"
+import type { ApplicationDraft, ApplicationDraftResult } from "./applicationDrafts"
 import { submitVolunteerApplication } from "./applications"
 import type { VolunteerApplicationResult } from "./applications"
 import { getApplicationStatus } from "./applicationStatus"
@@ -40,6 +42,23 @@ export async function getApplicationStatusAction(): Promise<
   ApplicationStatusResult<ApplicationStatus | null>
 > {
   return getApplicationStatus()
+}
+
+/**
+ * Server Action wrappers so a Client Component can call these directly. Not
+ * wired into the onboarding wizard's existing localStorage draft yet - see
+ * applicationDrafts.ts's doc comment.
+ */
+export async function saveDraftAction(responses: unknown): Promise<ApplicationDraftResult<null>> {
+  return saveDraft(responses)
+}
+
+export async function loadDraftAction(): Promise<ApplicationDraftResult<ApplicationDraft | null>> {
+  return loadDraft()
+}
+
+export async function deleteDraftAction(): Promise<ApplicationDraftResult<null>> {
+  return deleteDraft()
 }
 
 /**
