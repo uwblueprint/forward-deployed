@@ -1,4 +1,6 @@
 export { VolunteerList } from "./VolunteerList"
 export type { VolunteerListProps } from "./VolunteerList"
 export { VolunteerOnboardingWizard } from "./VolunteerOnboardingWizard"
+export { VolunteerProfile } from "./VolunteerProfile"
+export type { VolunteerProfileProps } from "./VolunteerProfile"
 export type { VolunteerOnboardingWizardProps } from "./VolunteerOnboardingWizard"

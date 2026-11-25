@@ -136,6 +136,12 @@ describe("changeEventStatus", () => {
     await expect(changeEventStatus(ID, "published")).resolves.toEqual({ ok: false, error: { type: "conflict" } })
   })
 
+  it("reports the database refusing a transition as a conflict, not a raw error", async () => {
+    mockRead.mockResolvedValue({ data: event(), error: null })
+    mockWrite.mockResolvedValue({ data: null, error: { code: "55000", message: "An event that has already started cannot be published" } })
+    await expect(changeEventStatus(ID, "published")).resolves.toEqual({ ok: false, error: { type: "conflict" } })
+  })
+
   it("returns an illegal move with its reason, without writing", async () => {
     mockRead.mockResolvedValue({ data: event({ status: "cancelled" }), error: null })
     const result = await changeEventStatus(ID, "published")
