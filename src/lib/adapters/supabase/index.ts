@@ -6,6 +6,8 @@ import type { EventCreate, EventRepository, EventUpdate, VolunteerCreate, Volunt
 export type ClientFactory = () => Promise<SupabaseClient<Database>>
 
 // Embeds users through volunteers_user_id_fkey, renamed to `user`.
+const PAGE_SIZE = 1000
+
 const VOLUNTEER_WITH_USER_COLUMNS = "*, user:users(first_name, last_name, email)"
 
 /** Volunteers through Supabase. RLS decides which rows the signed-in user can read or change. */
@@ -19,12 +21,22 @@ export class SupabaseVolunteerRepository implements VolunteerRepository {
   }
 
   async getAllWithUser() {
-    const { data, error } = await (await this.client())
-      .from("volunteers")
-      .select(VOLUNTEER_WITH_USER_COLUMNS)
-      .order("created_at")
-    if (error) throw error
-    return data
+    const client = await this.client()
+    // The API returns at most a page of rows per request (max_rows in
+    // supabase/config.toml), so read every page instead of silently stopping
+    // at the first. The id keeps the order stable between pages.
+    const rows = []
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await client
+        .from("volunteers")
+        .select(VOLUNTEER_WITH_USER_COLUMNS)
+        .order("created_at")
+        .order("id")
+        .range(from, from + PAGE_SIZE - 1)
+      if (error) throw error
+      rows.push(...data)
+      if (data.length < PAGE_SIZE) return rows
+    }
   }
 
   async getById(id: string) {

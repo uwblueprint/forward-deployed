@@ -5,6 +5,9 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(12);
 
+-- Start from no organization, so the suite also passes on a seeded database.
+delete from public.organizations;
+
 insert into auth.users (id, email, email_confirmed_at) values ('d0000000-0000-0000-0000-000000000001', 'early@example.com', now());
 select is_empty($$ select 1 from public.memberships where user_id = 'd0000000-0000-0000-0000-000000000001' $$,
   'with no organization yet, a signup joins nothing');

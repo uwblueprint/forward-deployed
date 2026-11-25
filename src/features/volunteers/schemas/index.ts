@@ -8,8 +8,10 @@ export {
   stepOneSchema,
   stepThreeSchema,
   stepTwoSchema,
+  userNameSchema,
   volunteerOnboardingSchema,
   volunteerOnboardingStepSchemas,
+  volunteerProfileUpdateSchema,
   WEEKDAYS,
 } from "./volunteerSchema"
 export type {
@@ -18,6 +20,7 @@ export type {
   EmergencyContact,
   PersonalDetails,
   Skills,
+  UserName,
   VolunteerOnboardingPayload,
   VolunteerOnboardingStepOne,
   VolunteerOnboardingStepThree,
