@@ -1,5 +1,9 @@
 import { Suspense } from "react";
-import { AccountMenu, AdminShell } from "@/components/common/navigation";
+import {
+  AccountMenu,
+  AdminShell,
+  accountIdentity,
+} from "@/components/common/navigation";
 import { getUserRole, requireRole, signOutAction } from "@/features/auth";
 import { getCurrentUser } from "@/lib/supabase/require-user";
 
@@ -21,14 +25,7 @@ async function AdminAccount() {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const email = user.email ?? "";
-  const fullName = user.user_metadata?.full_name;
-  const name =
-    typeof fullName === "string" && fullName.trim()
-      ? fullName
-      : email.split("@")[0] || "Account";
-
-  return <AccountMenu name={name} email={email} onSignOut={signOutAction} />;
+  return <AccountMenu {...accountIdentity(user)} onSignOut={signOutAction} />;
 }
 
 // Server component: route-level auth checks belong here, not inside AdminShell.
