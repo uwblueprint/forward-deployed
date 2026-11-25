@@ -1,6 +1,8 @@
 "use server"
 
 import { approveOrRejectApplication, editApplicantMessage } from "./applicationDecisions"
+import { saveApplicationNote } from "./applicationNotes"
+import type { ApplicationNoteResult } from "./applicationNotes"
 import type {
   ApplicantMessageResult,
   ApplicationDecision,
@@ -8,10 +10,7 @@ import type {
   ApplicationDecisionResult,
 } from "./applicationDecisions"
 
-/**
- * Server Action wrappers so a Client Component can call these directly. Not
- * wired into the review screen yet.
- */
+/** Server Action wrappers so the review screen's Client Components can call these. */
 export async function approveOrRejectApplicationAction(
   applicationId: string,
   decision: ApplicationDecision,
@@ -26,4 +25,8 @@ export async function editApplicantMessageAction(
   applicantMessage: string
 ): Promise<ApplicantMessageResult> {
   return editApplicantMessage(applicationId, applicantMessage)
+}
+
+export async function saveApplicationNoteAction(applicationId: string, note: string): Promise<ApplicationNoteResult> {
+  return saveApplicationNote(applicationId, note)
 }

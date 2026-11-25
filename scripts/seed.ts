@@ -229,6 +229,17 @@ const invitations = Array.from({ length: INVITATION_COUNT }, (_, i) => {
 
 console.log(`Seeding ${new URL(url).host} ...`)
 
+// Checked before anything is written: a second organization breaks signups in single-organization mode.
+const { data: otherOrganizations, error: otherError } = await supabase.from("organizations").select("id, name").neq("id", organization.id)
+check(otherError, "looking for other organizations")
+// Organizations from earlier seeds don't count; they're removed below.
+const earlierSeedIds = new Set(Array.from({ length: OLD_SEED_ORGANIZATIONS }, (_, i) => seedId("organization", i)))
+const foreign = otherOrganizations!.filter((o) => !earlierSeedIds.has(o.id))
+if (foreign.length > 0) {
+  console.error(`This project already has an organization (${foreign[0].name}). The seed makes its own, and single-organization mode needs exactly one. Nothing was changed.`)
+  process.exit(1)
+}
+
 // Deleting the previous runs' accounts cascades to their memberships, profiles, applications, and registrations.
 const oldUserIds = Array.from({ length: Math.max(users.length, OLD_SEED_USERS) }, (_, i) => seedId("user", i))
 for (const { error } of await Promise.all(oldUserIds.map((id) => supabase.auth.admin.deleteUser(id)))) {
@@ -238,12 +249,6 @@ const oldOrganizationIds = Array.from({ length: OLD_SEED_ORGANIZATIONS - 1 }, (_
 check((await supabase.from("organizations").delete().in("id", oldOrganizationIds)).error, "deleting old seed organizations")
 
 check((await supabase.from("organizations").upsert(organization)).error, "upserting the organization")
-const { count: organizationCount, error: countError } = await supabase.from("organizations").select("id", { count: "exact", head: true })
-check(countError, "counting organizations")
-if (organizationCount !== 1) {
-  console.error(`This project has ${organizationCount} organizations. Single-organization mode needs exactly one, or signups fail. Remove the others first.`)
-  process.exit(1)
-}
 
 const created = await Promise.all(
   users.map((user) =>
@@ -263,6 +268,16 @@ check(
   (await supabase.from("memberships").upsert(users.map(({ id, role }) => ({ user_id: id, organization_id: organization.id, role })), { onConflict: "user_id" })).error,
   "assigning roles",
 )
+
+// Accounts made before the seed's organization existed have no membership; they join as volunteers.
+const [{ data: allUsers, error: allUsersError }, { data: members, error: membersError }] = await Promise.all([
+  supabase.from("users").select("id"),
+  supabase.from("memberships").select("user_id"),
+])
+check(allUsersError ?? membersError, "looking for accounts without a membership")
+const memberIds = new Set(members!.map((m) => m.user_id))
+const unattached = allUsers!.filter((u) => !memberIds.has(u.id)).map((u) => ({ user_id: u.id, organization_id: organization.id }))
+if (unattached.length) check((await supabase.from("memberships").insert(unattached)).error, "adding earlier signups to the organization")
 
 check((await supabase.from("custom_fields").upsert(customFields)).error, "upserting custom fields")
 check((await supabase.from("events").upsert(events)).error, "upserting events")

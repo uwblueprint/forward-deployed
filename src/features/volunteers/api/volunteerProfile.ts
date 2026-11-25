@@ -2,12 +2,9 @@ import { z } from "zod"
 
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 
-import {
-  availabilitySchema,
-  emergencyContactSchema,
-  personalDetailsSchema,
-  skillsSchema,
-} from "../schemas/volunteerSchema"
+import { volunteerProfileUpdateSchema, type VolunteerProfileUpdate } from "../schemas/volunteerSchema"
+
+export type { VolunteerProfileUpdate }
 
 export type VolunteerProfileError =
   | { type: "validation"; fieldErrors: Record<string, string[]> }
@@ -19,15 +16,6 @@ export type VolunteerProfileError =
 export type VolunteerProfileResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: VolunteerProfileError }
-
-// Everything editable here minus consent - that's never part of this
-// payload at all, see updateVolunteerProfile's doc comment.
-const volunteerProfileUpdateSchema = personalDetailsSchema
-  .merge(availabilitySchema)
-  .merge(skillsSchema)
-  .merge(emergencyContactSchema)
-
-export type VolunteerProfileUpdate = z.infer<typeof volunteerProfileUpdateSchema>
 
 function toProfileColumns(payload: VolunteerProfileUpdate) {
   return {
@@ -77,6 +65,10 @@ export async function updateVolunteerProfile(
   if (!parsed.success) {
     return { ok: false, error: { type: "validation", fieldErrors: z.flattenError(parsed.error).fieldErrors } }
   }
+
+  // A malformed id can't match anyone. Checked here so Postgres's own
+  // complaint about it never travels back to the browser.
+  if (!z.guid().safeParse(volunteerId).success) return { ok: false, error: { type: "not-found" } }
 
   const supabase = await createServerSupabaseClient()
   const {

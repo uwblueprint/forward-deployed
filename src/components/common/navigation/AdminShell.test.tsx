@@ -15,7 +15,7 @@ vi.mock("next/navigation", () => ({
 describe("AdminShell", () => {
   it("renders nav links and children in the main area", () => {
     render(
-      <AdminShell>
+      <AdminShell isAdmin>
         <p>Placeholder content</p>
       </AdminShell>
     )
@@ -29,6 +29,13 @@ describe("AdminShell", () => {
     }
     expect(nav).toBeInTheDocument()
     expect(screen.getByRole("main")).toHaveTextContent("Placeholder content")
+  })
+
+  it("hides admin-only links like Settings unless the viewer is an admin", () => {
+    render(<AdminShell>x</AdminShell>)
+
+    expect(screen.queryByRole("link", { name: "Settings" })).toBeNull()
+    expect(screen.getByRole("link", { name: "Applications" })).toBeInTheDocument()
   })
 
   it("matches the Figma admin nav order", () => {
