@@ -196,6 +196,13 @@ registrations: `text`, `textarea`, `number`, `date`, `select`, `multiselect`, or
 `checkbox`, each optionally required. Select and multiselect questions need
 options; the other types have none.
 
+Questions are shown in `position` order, then by id. To reorder one kind of
+question, admins call `supabase.rpc("reorder_custom_fields", {
+target_entity_type, ordered_ids })` with every question of that kind in the new
+order. It moves all of them or none: 22023 if the ids aren't exactly the current
+questions (someone added or removed one), 42501 for anyone but an admin. Server
+code can call `reorderCustomFields` from `src/features/settings`.
+
 Answers go in `applications.responses` and `registrations.custom_responses`,
 an object keyed by question id. The database applies the same rules as
 `validateCustomFieldAnswers` in `src/lib/customFieldAnswers.ts`: every required
@@ -230,16 +237,29 @@ holds a placeholder until she approves the wording.
 - An event with any registrations, cancelled ones included, can't be deleted;
   cancel it instead, which keeps attendance history. Staff can delete a
   registration until attendance is recorded or the event is completed.
-- Recorded attendance can be corrected but not cleared, and a completed event
-  can't be reopened.
-- Hours aren't stored. Derive them from `ends_at - starts_at` for attended
-  registrations.
+- Event status moves only one way: a draft can be published or cancelled; a
+  published event can go back to draft, be cancelled, or be completed.
+  Cancelled and completed are final. Publishing needs the event not to have
+  started, completing needs it to have started, and going back to draft needs
+  that nobody has ever signed up (a cancelled signup counts). The database
+  enforces this, the same rules as `EVENT_TRANSITIONS` in
+  `src/features/events/utils/eventState.ts`, and refuses anything else with
+  code 55000. The app checks first so it can say why.
+- Staff can cancel or restore a volunteer's signup for them; volunteers often
+  ask a coordinator to drop them. Those changes go in the audit log.
+- Attendance is recorded only for someone still registered, and only once the
+  event has started (code 55000 otherwise). It can be corrected but not
+  cleared, and a signup with attendance can't be cancelled afterwards, so a
+  cancelled signup never has attendance.
+- Hours aren't stored. Derive them from `ends_at - starts_at` for registrations
+  that are still registered and marked attended.
 
 ## Audit log
 
 `audit_log` records application decisions, role changes (joining and leaving
-included), invitations issued, revoked, and redeemed, and event status changes
-(creation and deletion included), with who made each one and when. A null actor means a server-side change. Admins read
+included), invitations issued, revoked, and redeemed, event status changes
+(creation and deletion included), and signups cancelled or restored by someone
+other than the volunteer, with who made each one and when. A null actor means a server-side change. Admins read
 their organization's history. Nobody can change, delete, or truncate entries
 through the API or with the secret key, and a trigger refuses it for the
 database owner too, even in replica mode. Deleting a user or organization

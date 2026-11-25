@@ -21,6 +21,8 @@ export type ApplicationDecisionResult =
 export interface ApplicationDecisionOptions {
   /** The status the reviewer saw. Pass the current decision to change it. */
   expectedStatus?: Enums<"volunteer_status">
+  /** Admin-only internal note, saved with the decision. Replaces any earlier note; blank leaves it alone. */
+  note?: string
 }
 
 const decisionSchema = z.object({
@@ -28,12 +30,13 @@ const decisionSchema = z.object({
   decision: z.enum(["approved", "rejected"]),
   applicantMessage: z.string().max(2000).optional(),
   expectedStatus: z.enum(["pending", "approved", "rejected"]),
+  note: z.string().max(5000).optional(),
 })
 
 // SQLSTATEs public.decide_application raises (see
 // supabase/migrations/20261118014015_decide_application.sql).
 const ERROR_TYPES: Partial<Record<string, "not-allowed" | "not-found" | "not-latest" | "already-decided">> = {
-  "42501": "not-allowed", // not staff in that organization, or their own application
+  "42501": "not-allowed", // not staff in that organization, their own application, or a manager writing a note
   P0002: "not-found", // no such application in the caller's organization
   "55000": "not-latest", // the volunteer has applied again since
   "22023": "already-decided", // repeated, or someone changed it since the reviewer looked
@@ -67,6 +70,7 @@ export async function approveOrRejectApplication(
     // Approval clears the message, so a leftover one is ignored.
     applicantMessage: decision === "rejected" ? applicantMessage : undefined,
     expectedStatus: options?.expectedStatus ?? "pending",
+    note: options?.note,
   })
   if (!parsed.success) {
     return { ok: false, error: { type: "validation", fieldErrors: z.flattenError(parsed.error).fieldErrors } }
@@ -86,6 +90,7 @@ export async function approveOrRejectApplication(
     decision: parsed.data.decision,
     message: parsed.data.applicantMessage,
     expected_status: parsed.data.expectedStatus,
+    note: parsed.data.note,
   })
 
   if (error) {

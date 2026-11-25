@@ -7,7 +7,10 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(216);
+select plan(220);
+
+-- Start from no organization, so the suite also passes on a seeded database.
+delete from public.organizations;
 
 insert into auth.users (id, email) values
   ('20000000-0000-0000-0000-0000000000a0', 'admin.a@example.com'),
@@ -78,10 +81,10 @@ insert into public.custom_fields (id, organization_id, entity_type, field_name, 
 select is((select count(*) from pg_tables where schemaname = 'public' and not rowsecurity), 0::bigint,
   'RLS is enabled on every public table');
 select is((select string_agg(p.proname::text, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'),
-  'create_invitation,decide_application,edit_applicant_message,redeem_invitation,registration_count,revoke_invitation,set_user_role', 'the API schema exposes only the intended functions');
+  'create_invitation,decide_application,edit_applicant_message,redeem_invitation,registration_count,reorder_custom_fields,revoke_invitation,set_user_role', 'the API schema exposes only the intended functions');
 select is((select string_agg(p.proname::text, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute')),
-  'create_invitation,decide_application,edit_applicant_message,redeem_invitation,registration_count,revoke_invitation,set_user_role', 'signed-in users can call only those functions');
+  'create_invitation,decide_application,edit_applicant_message,redeem_invitation,registration_count,reorder_custom_fields,revoke_invitation,set_user_role', 'signed-in users can call only those functions');
 select is((select (select count(*) from information_schema.role_table_grants where grantee = 'anon' and table_schema = 'public')
   + (select count(*) from information_schema.column_privileges where grantee = 'anon' and table_schema = 'public')
   + (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public', 'private') and has_function_privilege('anon', p.oid, 'execute'))),
@@ -348,7 +351,7 @@ select is_empty($$ update public.organizations set name = 'x' where id = '100000
 select lives_ok($$ update public.registrations set attendance_status = 'no_show' where id = '50000000-0000-0000-0000-0000000000a3' $$, 'admin can correct attendance');
 select throws_ok($$ update public.registrations set attendance_status = null where id = '50000000-0000-0000-0000-0000000000a3' $$, '42501', 'Recorded attendance can be corrected but not cleared',
   'admin cannot clear recorded attendance');
-select throws_ok($$ update public.events set status = 'published' where id = '40000000-0000-0000-0000-0000000000a3' $$, '42501', 'A completed event cannot be reopened',
+select throws_ok($$ update public.events set status = 'published' where id = '40000000-0000-0000-0000-0000000000a3' $$, '55000', 'A completed event cannot change status',
   'staff cannot reopen a completed event');
 select lives_ok($$ insert into public.custom_fields (organization_id, entity_type, field_name, field_type, options) values ('10000000-0000-0000-0000-00000000000a', 'registration', 'Shirt size', 'select', '["S", "M", "L"]') $$, 'admin can add a custom field');
 select throws_ok($$ insert into public.custom_fields (organization_id, entity_type, field_name, field_type) values ('10000000-0000-0000-0000-00000000000b', 'registration', 'x', 'text') $$, '42501', null, 'admin cannot add an org B custom field');
@@ -425,6 +428,10 @@ select is((select applicant_message from public.applications where id = '6000000
   'Thanks for applying. We are not able to take you on right now.', 'a rejection with no message gets the org default');
 select results_eq($$ select applicant_message from public.edit_applicant_message('60000000-0000-0000-0000-0000000000a2', '  ') $$,
   $$ values ('Thanks for applying. We are not able to take you on right now.') $$, 'an edited message left blank falls back to the org default');
+select results_eq($$ select applicant_message from public.edit_applicant_message('60000000-0000-0000-0000-0000000000a2', E' \n\t ') $$,
+  $$ values ('Thanks for applying. We are not able to take you on right now.') $$, 'a message of only newlines and tabs is blank too');
+select throws_ok($$ select public.edit_applicant_message('60000000-0000-0000-0000-0000000000a2', repeat('x', 2001)) $$,
+  '23514', null, 'a message over 2000 characters is refused, even straight through the API');
 select results_eq($$ select applicant_message from public.decide_application(
   (select id from public.applications where volunteer_id = (select id from public.volunteers where user_id = '20000000-0000-0000-0000-0000000000a4')), 'rejected', '  ', expected_status => 'approved') $$,
   $$ values ('Thanks for applying. We are not able to take you on right now.') $$, 'a rejection with a blank message gets the org default');
@@ -541,6 +548,12 @@ select is((select organization_id from public.volunteers where id = '30000000-00
 select lives_ok($$ delete from public.organizations where id = '10000000-0000-0000-0000-00000000000a' $$, 'deleting an organization still works');
 select is((select count(*) from public.registrations r join public.events e on e.id = r.event_id where e.organization_id = '10000000-0000-0000-0000-00000000000a'), 0::bigint,
   'and removes its events and registrations');
+
+reset role;
+select throws_ok($$ update public.users set first_name = repeat('x', 101) where id = '20000000-0000-0000-0000-0000000000a0' $$,
+  '23514', null, 'a name over 100 characters is refused');
+select throws_ok($$ insert into public.application_notes (application_id, internal_note) values ('60000000-0000-0000-0000-0000000000a2', repeat('x', 5001)) $$,
+  '23514', null, 'a note over 5000 characters is refused');
 
 select * from finish();
 rollback;

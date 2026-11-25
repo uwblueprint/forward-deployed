@@ -1,13 +1,19 @@
 import { Suspense } from "react";
 import { AccountMenu, AdminShell } from "@/components/common/navigation";
-import { requireRole, signOutAction } from "@/features/auth";
+import { getUserRole, requireRole, signOutAction } from "@/features/auth";
 import { getCurrentUser } from "@/lib/supabase/require-user";
 
-async function RequireRole({ children }: { children: React.ReactNode }) {
+async function AdminArea({ children }: { children: React.ReactNode }) {
   // Admin area policy (admin + manager) is pending team confirmation.
-  await requireRole(["admin", "manager"]);
+  const user = await requireRole(["admin", "manager"]);
+  // Cached per request, so this reuses requireRole's lookup.
+  const role = await getUserRole(user);
 
-  return children;
+  return (
+    <AdminShell account={<AdminAccount />} isAdmin={role === "admin"}>
+      {children}
+    </AdminShell>
+  );
 }
 
 // Cached per request, so this reuses the lookup requireRole already made.
@@ -33,9 +39,7 @@ export default function AdminLayout({
 }) {
   return (
     <Suspense>
-      <RequireRole>
-        <AdminShell account={<AdminAccount />}>{children}</AdminShell>
-      </RequireRole>
+      <AdminArea>{children}</AdminArea>
     </Suspense>
   );
 }

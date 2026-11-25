@@ -326,6 +326,9 @@ isOneToOne: false
 "registration_count":
 { Args: { "": Database["public"]['Tables']["events"]['Row'] }; Returns: { error: true } & "the function public.registration_count with parameter or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache"
                            },
+"reorder_custom_fields":
+{ Args: { "ordered_ids": (string)[],"target_entity_type": string }; Returns: undefined
+                           },
 "revoke_invitation":
 { Args: { "target_invitation_id": string }; Returns: undefined
                            },

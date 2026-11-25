@@ -5,7 +5,9 @@ export {
   saveDraftAction,
   submitVolunteerApplicationAction,
   submitVolunteerOnboardingAction,
+  getVolunteerDetailsAction,
   updateMyVolunteerProfileAction,
+  updateUserNameAction,
   updateVolunteerProfileAction,
 } from "./actions"
 export type { ApplicationDraft, ApplicationDraftError, ApplicationDraftResult } from "./applicationDrafts"
@@ -19,5 +21,13 @@ export type {
   ApplicationStatusError,
   ApplicationStatusResult,
 } from "./applicationStatus"
+export type { UserNameError, UserNameResult } from "./userName"
+export type {
+  VolunteerDetails,
+  VolunteerDetailsError,
+  VolunteerDetailsResult,
+  VolunteerEventHistoryItem,
+  VolunteerLatestApplication,
+} from "./volunteerDetails"
 export type { VolunteerOnboardingError, VolunteerOnboardingResult } from "./volunteers"
 export type { VolunteerProfileError, VolunteerProfileResult, VolunteerProfileUpdate } from "./volunteerProfile"

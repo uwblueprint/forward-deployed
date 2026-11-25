@@ -17,7 +17,8 @@ function isEmpty(value: unknown): boolean {
 
 /** A real YYYY-MM-DD date, like a date input sends. Matches the database's check. */
 function isCalendarDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  // Postgres has no year 0000.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000")) return false
   const date = new Date(`${value}T00:00:00Z`)
   return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
 }

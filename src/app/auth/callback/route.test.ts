@@ -1,19 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockExchangeCodeForSession, RedirectError } = vi.hoisted(() => {
-  class RedirectError extends Error {
-    constructor(public readonly url: string) {
-      super(`redirect:${url}`);
+const { mockExchangeCodeForSession, mockGetUserRole, RedirectError } =
+  vi.hoisted(() => {
+    class RedirectError extends Error {
+      constructor(public readonly url: string) {
+        super(`redirect:${url}`);
+      }
     }
-  }
 
-  return { mockExchangeCodeForSession: vi.fn(), RedirectError };
-});
+    return {
+      mockExchangeCodeForSession: vi.fn(),
+      mockGetUserRole: vi.fn(),
+      RedirectError,
+    };
+  });
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: vi.fn(async () => ({
     auth: { exchangeCodeForSession: mockExchangeCodeForSession },
   })),
+}));
+
+vi.mock("@/features/auth", () => ({
+  getUserRole: mockGetUserRole,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -45,6 +54,7 @@ describe("GET /auth/callback", () => {
 
     expect(mockExchangeCodeForSession).toHaveBeenCalledWith("abc");
     expect(redirect).toHaveBeenCalledWith("/settings");
+    expect(mockGetUserRole).not.toHaveBeenCalled();
   });
 
   it("redirects with reason=expired when Supabase redirects with an otp_expired error", async () => {
@@ -100,5 +110,62 @@ describe("GET /auth/callback", () => {
     );
 
     expect(redirect).toHaveBeenCalledWith("/auth/error?reason=invalid");
+  });
+
+  it("redirects admins to /admin/dashboard when next is absent", async () => {
+    mockExchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+      error: null,
+    });
+    mockGetUserRole.mockResolvedValue("admin");
+
+    await expect(GET(makeRequest("?code=abc"))).rejects.toThrow(
+      RedirectError,
+    );
+
+    expect(mockGetUserRole).toHaveBeenCalledWith({ id: "user-1" });
+    expect(redirect).toHaveBeenCalledWith("/admin/dashboard");
+  });
+
+  it("redirects managers to /admin/dashboard when next is absent", async () => {
+    mockExchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+      error: null,
+    });
+    mockGetUserRole.mockResolvedValue("manager");
+
+    await expect(GET(makeRequest("?code=abc"))).rejects.toThrow(
+      RedirectError,
+    );
+
+    expect(redirect).toHaveBeenCalledWith("/admin/dashboard");
+  });
+
+  it("redirects volunteers to /dashboard when next is absent", async () => {
+    mockExchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+      error: null,
+    });
+    mockGetUserRole.mockResolvedValue("volunteer");
+
+    await expect(GET(makeRequest("?code=abc"))).rejects.toThrow(
+      RedirectError,
+    );
+
+    expect(redirect).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("fails closed to /dashboard when getUserRole returns null", async () => {
+    mockExchangeCodeForSession.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+      error: null,
+    });
+    mockGetUserRole.mockResolvedValue(null);
+
+    await expect(GET(makeRequest("?code=abc"))).rejects.toThrow(
+      RedirectError,
+    );
+
+    expect(redirect).toHaveBeenCalledWith("/dashboard");
   });
 });
