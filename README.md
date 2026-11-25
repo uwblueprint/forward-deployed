@@ -74,6 +74,7 @@ src/
     crm/
     settings/
     reports/
+    dashboard/
       api/              Server calls for this domain
       components/       UI owned by this domain
       hooks/            Stateful logic for this domain
