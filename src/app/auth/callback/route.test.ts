@@ -57,6 +57,18 @@ describe("GET /auth/callback", () => {
     expect(mockGetUserRole).not.toHaveBeenCalled();
   });
 
+  it("redirects to a next path that itself contains a query string, once decoded", async () => {
+    mockExchangeCodeForSession.mockResolvedValue({ error: null });
+    const invitePath = "/auth/invite?token=abc123";
+
+    await expect(
+      GET(makeRequest(`?code=abc&next=${encodeURIComponent(invitePath)}`)),
+    ).rejects.toThrow(RedirectError);
+
+    expect(redirect).toHaveBeenCalledWith(invitePath);
+    expect(mockGetUserRole).not.toHaveBeenCalled();
+  });
+
   it("redirects with reason=expired when Supabase redirects with an otp_expired error", async () => {
     await expect(
       GET(
