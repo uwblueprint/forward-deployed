@@ -87,6 +87,7 @@ src/
       forms/
       navigation/
       metrics/
+      states/           Shared LoadingState / EmptyState / ErrorState
   lib/
     adapters/           Repositories: contracts, Supabase and mock versions, and the switch
     supabase/           Generated database types
@@ -325,9 +326,15 @@ Not configured for local Supabase; test against a hosted project.
 
 `tooltip` needs a `TooltipProvider` ancestor before use.
 
-Not installed on purpose: `sidebar`. The admin shell is hand-rolled in
-`src/components/common/navigation/AdminShell.tsx` and already matches the Figma
-Sidebar page (see FOR-102); don't add shadcn's `sidebar` alongside it.
+Not installed on purpose: `sidebar`. The admin and volunteer shells are
+hand-rolled on one `AppShell` in `src/components/common/navigation/` and already
+match the Figma Sidebar page (see FOR-102, FOR-115); don't add shadcn's `sidebar`
+alongside it.
+
+Loading, empty, and error UI comes from `@/components/common/states`
+(`LoadingState`, `EmptyState`, `ErrorState`). Route groups use them in
+`loading.tsx`, `error.tsx`, and `not-found.tsx`; error boundaries log the thrown
+error and never render its message.
 
 The original ten are rendered together at `/showcase`
 (`src/app/showcase/page.tsx`) when running the dev server.
