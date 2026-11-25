@@ -1,10 +1,7 @@
 /**
- * Loading, empty, and error states for the volunteer event screens.
- *
- * TEMPORARY: FOR-115 adds shared LoadingState / EmptyState / ErrorState
- * components for the volunteer shell. Swap each of these for the shared one
- * once it lands; every event screen gets its states from this file only.
- * Never pass a raw backend error message in here.
+ * Loading skeletons shaped like the event cards and modal, so the page doesn't
+ * jump when data arrives. Empty and error states use the shared components in
+ * @/components/common/states.
  */
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -36,26 +33,6 @@ export function EventDetailLoading() {
         <Skeleton className="h-4 w-2/3" />
       </div>
       <Skeleton className="h-64 rounded-xl" />
-    </div>
-  )
-}
-
-export function EventsEmptyState({ filtered }: { filtered: boolean }) {
-  return (
-    <div className="flex flex-col items-center gap-1 rounded-xl border border-dashed px-6 py-12 text-center">
-      <p className="text-header-sm">No events found</p>
-      <p className="text-body-sm text-muted-foreground">
-        {filtered ? "Try a different search or clear your filters." : "Check back soon for new events."}
-      </p>
-    </div>
-  )
-}
-
-export function EventsErrorState({ title, message }: { title: string; message: string }) {
-  return (
-    <div role="alert" className="flex flex-col items-center gap-1 rounded-xl border px-6 py-12 text-center">
-      <p className="text-header-sm">{title}</p>
-      <p className="text-body-sm text-muted-foreground">{message}</p>
     </div>
   )
 }

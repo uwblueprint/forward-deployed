@@ -1,10 +1,10 @@
 import { Suspense } from "react"
 
+import { ErrorState } from "@/components/common/states"
 import {
   EventFilters,
   EventList,
   EventListLoading,
-  EventsErrorState,
   deriveEventState,
   getMyVolunteerStatusAction,
   getOpportunitiesAction,
@@ -46,11 +46,11 @@ async function EventsBrowser({ searchParams }: { searchParams: SearchParams }) {
           <EventFilters values={values} categories={[]} locations={[]} />
         </Hero>
         {result.error.type === "unauthenticated" ? (
-          <EventsErrorState title="Sign in to continue" message="Sign in to browse events." />
+          <ErrorState title="Sign in to continue" description="Sign in to browse events." />
         ) : (
-          <EventsErrorState
+          <ErrorState
             title="Couldn't load events"
-            message="Something went wrong. Refresh the page to try again."
+            description="Something went wrong. Refresh the page to try again."
           />
         )}
       </>

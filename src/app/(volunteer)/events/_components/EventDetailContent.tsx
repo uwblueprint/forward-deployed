@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 
-import { EventDetail, EventsErrorState, getEventDetailsAction } from "@/features/events"
+import { ErrorState } from "@/components/common/states"
+import { EventDetail, getEventDetailsAction } from "@/features/events"
 
 const ERRORS = {
   "not-found": { title: "Event not found", message: "This event doesn't exist or is no longer available." },
@@ -31,7 +32,7 @@ export async function EventDetailContent({
     const { title, message } = ERRORS[result.error.type]
     return (
       <div className="p-6">
-        <EventsErrorState title={title} message={message} />
+        <ErrorState title={title} description={message} />
       </div>
     )
   }

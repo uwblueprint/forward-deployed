@@ -3,10 +3,10 @@ import type { Enums } from "@/lib/supabase/database.types"
 
 import { InfoIcon } from "lucide-react"
 
+import { EmptyState } from "@/components/common/states"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 import { EventDiscoveryCard } from "./EventDiscoveryCard"
-import { EventsEmptyState } from "./EventsTemporaryStates"
 import { ineligibleMessage } from "./registrationMessages"
 
 interface EventListProps {
@@ -30,7 +30,10 @@ export function EventList({ events, volunteerStatus, filtered, now }: EventListP
         </Alert>
       )}
       {events.length === 0 ? (
-        <EventsEmptyState filtered={filtered} />
+        <EmptyState
+          title="No events found"
+          description={filtered ? "Try a different search or clear your filters." : "Check back soon for new events."}
+        />
       ) : (
         <ul aria-label="Events" className="grid gap-4 md:grid-cols-2">
           {events.map((event) => (
