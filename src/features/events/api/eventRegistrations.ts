@@ -103,6 +103,8 @@ const attendanceSchema = z.object({
 })
 
 const RLS_VIOLATION = "42501"
+// guard_registrations_update; the status filter rules out the cancelled case, so the start moved later.
+const ATTENDANCE_RULE = "55000"
 
 /**
  * Staff-only. Records or corrects a registration's attendance. Another
@@ -152,6 +154,9 @@ export async function setAttendance(
     .maybeSingle()
   if (error) {
     if (error.code === RLS_VIOLATION) return { ok: false, error: { type: "forbidden" } }
+    if (error.code === ATTENDANCE_RULE) {
+      return { ok: false, error: { type: "attendance-not-allowed", reason: "event-not-started" } }
+    }
     return { ok: false, error: { type: "backend", message: error.message } }
   }
   if (!data) {

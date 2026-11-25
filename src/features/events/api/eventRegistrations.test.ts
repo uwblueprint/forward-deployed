@@ -240,6 +240,14 @@ describe("setAttendance", () => {
     await expect(setAttendance(REGISTRATION_ID, "attended")).resolves.toEqual({ ok: false, error: { type: "not-found" } })
   })
 
+  it("refuses if the database attendance rule fires (start moved later after the check)", async () => {
+    mockUpdate.mockResolvedValue({ data: null, error: { code: "55000", message: "Attendance cannot be recorded before the event starts" } })
+    await expect(setAttendance(REGISTRATION_ID, "attended")).resolves.toEqual({
+      ok: false,
+      error: { type: "attendance-not-allowed", reason: "event-not-started" },
+    })
+  })
+
   it("maps a database rejection to forbidden and other errors to backend", async () => {
     mockUpdate.mockResolvedValue({ data: null, error: { code: "42501", message: "denied" } })
     await expect(setAttendance(REGISTRATION_ID, "attended")).resolves.toEqual({ ok: false, error: { type: "forbidden" } })
