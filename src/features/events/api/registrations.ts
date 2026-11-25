@@ -68,7 +68,8 @@ function mapWriteError(error: { code?: string; message: string }): EventRegistra
  * `enforce_event_capacity` trigger are the single atomic source of truth
  * (see supabase/tests/concurrency.sh for the race this guarantees against).
  * This function only resolves the caller's volunteer_id, validates
- * organization-configured registration questions, and translates the
+ * organization-configured registration questions (new registrations only -
+ * re-registering keeps the original answers), and translates the
  * database's outcome into a typed result.
  *
  * No registration frontend wiring here - that's a later ticket.
@@ -112,21 +113,6 @@ export async function registerForEvent(
     return { ok: false, error: { type: "event-not-found" } }
   }
 
-  const { data: fields, error: fieldsError } = await supabase
-    .from("custom_fields")
-    .select("*")
-    .eq("organization_id", event.organization_id)
-    .eq("entity_type", "registration")
-
-  if (fieldsError) {
-    return { ok: false, error: { type: "backend", message: fieldsError.message } }
-  }
-
-  const validated = validateCustomFieldAnswers(fields ?? [], responses)
-  if (!validated.ok) {
-    return { ok: false, error: { type: "validation", fieldErrors: validated.fieldErrors } }
-  }
-
   const { data: existing, error: existingError } = await supabase
     .from("registrations")
     .select("id, status")
@@ -157,6 +143,23 @@ export async function registerForEvent(
       return { ok: false, error: mapWriteError(error) }
     }
     return { ok: true, data }
+  }
+
+  // Answers are only checked (and saved) for a new row: re-registering never
+  // writes them (above), so a returning volunteer isn't asked again.
+  const { data: fields, error: fieldsError } = await supabase
+    .from("custom_fields")
+    .select("*")
+    .eq("organization_id", event.organization_id)
+    .eq("entity_type", "registration")
+
+  if (fieldsError) {
+    return { ok: false, error: { type: "backend", message: fieldsError.message } }
+  }
+
+  const validated = validateCustomFieldAnswers(fields ?? [], responses)
+  if (!validated.ok) {
+    return { ok: false, error: { type: "validation", fieldErrors: validated.fieldErrors } }
   }
 
   const { data, error } = await supabase
