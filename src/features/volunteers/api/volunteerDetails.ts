@@ -37,7 +37,7 @@ export interface VolunteerDetails {
   /** Every registration, latest event first. */
   events: VolunteerEventHistoryItem[]
   eventsAttended: number
-  /** Event length summed over attended registrations. */
+  /** Event length summed over registrations that are still registered and marked attended. */
   hours: number
   /** The organization's skill list, to pick from when editing. */
   skillOptions: string[]
@@ -133,7 +133,9 @@ export async function getVolunteerDetails(
     // Compared as times: the same instant can be written with different offsets.
     .sort((a, b) => Date.parse(b.event.starts_at) - Date.parse(a.event.starts_at))
 
-  const attended = events.filter((item) => item.attendance === "attended")
+  // Only a signup that is still registered and was marked attended counts.
+  // The database refuses attendance on a cancelled signup; this says so here too.
+  const attended = events.filter((item) => item.registrationStatus === "registered" && item.attendance === "attended")
   const hours = attended.reduce(
     (total, item) => total + (Date.parse(item.event.ends_at) - Date.parse(item.event.starts_at)) / HOUR_MS,
     0

@@ -319,7 +319,7 @@ select is_empty($$ update public.organizations set name = 'x' where id = '100000
 select lives_ok($$ update public.registrations set attendance_status = 'no_show' where id = '50000000-0000-0000-0000-0000000000a3' $$, 'admin can correct attendance');
 select throws_ok($$ update public.registrations set attendance_status = null where id = '50000000-0000-0000-0000-0000000000a3' $$, '42501', 'Recorded attendance can be corrected but not cleared',
   'admin cannot clear recorded attendance');
-select throws_ok($$ update public.events set status = 'published' where id = '40000000-0000-0000-0000-0000000000a3' $$, '42501', 'A completed event cannot be reopened',
+select throws_ok($$ update public.events set status = 'published' where id = '40000000-0000-0000-0000-0000000000a3' $$, '55000', 'A completed event cannot change status',
   'staff cannot reopen a completed event');
 select lives_ok($$ insert into public.custom_fields (organization_id, entity_type, field_name, field_type, options) values ('10000000-0000-0000-0000-00000000000a', 'registration', 'Shirt size', 'select', '["S", "M", "L"]') $$, 'admin can add a custom field');
 select throws_ok($$ insert into public.custom_fields (organization_id, entity_type, field_name, field_type) values ('10000000-0000-0000-0000-00000000000b', 'registration', 'x', 'text') $$, '42501', null, 'admin cannot add an org B custom field');

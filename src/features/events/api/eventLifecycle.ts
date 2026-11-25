@@ -27,6 +27,7 @@ const inputSchema = z.object({
 
 const EVENT_COLUMNS = "*, registration_count"
 const RLS_VIOLATION = "42501"
+const INVALID_STATE = "55000"
 
 /**
  * Plain server-side function - not a Server Action. Call it from inside a
@@ -89,6 +90,9 @@ export async function changeEventStatus(
     .maybeSingle()
   if (writeError) {
     if (writeError.code === RLS_VIOLATION) return { ok: false, error: { type: "forbidden" } }
+    // The database applies the same transition rules (guard_event_status). It
+    // only disagrees with the check above if the event changed in between.
+    if (writeError.code === INVALID_STATE) return { ok: false, error: { type: "conflict" } }
     return { ok: false, error: { type: "backend", message: writeError.message } }
   }
   if (!updated) return { ok: false, error: { type: "conflict" } }
