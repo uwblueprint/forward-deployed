@@ -80,6 +80,8 @@ export async function getApplicationQuestions(): Promise<ApplicationQuestionsRes
     .eq("organization_id", membership.organization_id)
     .eq("entity_type", "application")
     .order("position")
+    // Same tie-break as the questions snapshot the database saves with each answer.
+    .order("id")
 
   if (fieldsError) {
     return { ok: false, error: { type: "backend", message: fieldsError.message } }

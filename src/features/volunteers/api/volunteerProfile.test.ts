@@ -54,8 +54,15 @@ beforeEach(() => {
 })
 
 describe("updateVolunteerProfile", () => {
+  it("reads a malformed volunteer id as not found, without asking the database", async () => {
+    const result = await updateVolunteerProfile("not-a-uuid", validPayload)
+
+    expect(result).toEqual({ ok: false, error: { type: "not-found" } })
+    expect(mockGetUser).not.toHaveBeenCalled()
+  })
+
   it("returns a validation error for a malformed payload", async () => {
-    const result = await updateVolunteerProfile("volunteer-1", {})
+    const result = await updateVolunteerProfile("30000000-0000-4000-8000-0000000000a1", {})
 
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -67,19 +74,19 @@ describe("updateVolunteerProfile", () => {
   it("returns unauthenticated when there is no session", async () => {
     mockGetUser.mockResolvedValue({ data: { user: null } })
 
-    const result = await updateVolunteerProfile("volunteer-1", validPayload)
+    const result = await updateVolunteerProfile("30000000-0000-4000-8000-0000000000a1", validPayload)
 
     expect(result).toEqual({ ok: false, error: { type: "unauthenticated" } })
   })
 
   it("updates only the editable profile columns - never status or consent_accepted_at", async () => {
     mockGetUser.mockResolvedValue({ data: { user } })
-    mockUpdateMaybeSingle.mockResolvedValue({ data: { id: "volunteer-1" }, error: null })
+    mockUpdateMaybeSingle.mockResolvedValue({ data: { id: "30000000-0000-4000-8000-0000000000a1" }, error: null })
 
-    const result = await updateVolunteerProfile("volunteer-1", validPayload)
+    const result = await updateVolunteerProfile("30000000-0000-4000-8000-0000000000a1", validPayload)
 
-    expect(result).toEqual({ ok: true, data: { id: "volunteer-1" } })
-    expect(mockUpdateEq).toHaveBeenCalledWith("id", "volunteer-1")
+    expect(result).toEqual({ ok: true, data: { id: "30000000-0000-4000-8000-0000000000a1" } })
+    expect(mockUpdateEq).toHaveBeenCalledWith("id", "30000000-0000-4000-8000-0000000000a1")
     expect(mockUpdate).toHaveBeenCalledWith({
       phone: "555-123-4567",
       location: "Waterloo",
@@ -99,7 +106,7 @@ describe("updateVolunteerProfile", () => {
     mockGetUser.mockResolvedValue({ data: { user } })
     mockUpdateMaybeSingle.mockResolvedValue({ data: null, error: null })
 
-    const result = await updateVolunteerProfile("someone-elses-volunteer-id", validPayload)
+    const result = await updateVolunteerProfile("30000000-0000-4000-8000-0000000000b2", validPayload)
 
     expect(result).toEqual({ ok: false, error: { type: "not-found" } })
   })
@@ -108,7 +115,7 @@ describe("updateVolunteerProfile", () => {
     mockGetUser.mockResolvedValue({ data: { user } })
     mockUpdateMaybeSingle.mockResolvedValue({ data: null, error: { message: "boom" } })
 
-    const result = await updateVolunteerProfile("volunteer-1", validPayload)
+    const result = await updateVolunteerProfile("30000000-0000-4000-8000-0000000000a1", validPayload)
 
     expect(result).toEqual({ ok: false, error: { type: "backend", message: "boom" } })
   })
@@ -136,13 +143,13 @@ describe("updateMyVolunteerProfile", () => {
 
   it("resolves the caller's own volunteer_id and updates just their phone, leaving status/consent alone", async () => {
     mockGetUser.mockResolvedValue({ data: { user } })
-    mockVolunteerMaybeSingle.mockResolvedValue({ data: { id: "volunteer-1" }, error: null })
-    mockUpdateMaybeSingle.mockResolvedValue({ data: { id: "volunteer-1" }, error: null })
+    mockVolunteerMaybeSingle.mockResolvedValue({ data: { id: "30000000-0000-4000-8000-0000000000a1" }, error: null })
+    mockUpdateMaybeSingle.mockResolvedValue({ data: { id: "30000000-0000-4000-8000-0000000000a1" }, error: null })
 
     const result = await updateMyVolunteerProfile({ ...validPayload, phone: "555-000-0000" })
 
-    expect(result).toEqual({ ok: true, data: { id: "volunteer-1" } })
-    expect(mockUpdateEq).toHaveBeenCalledWith("id", "volunteer-1")
+    expect(result).toEqual({ ok: true, data: { id: "30000000-0000-4000-8000-0000000000a1" } })
+    expect(mockUpdateEq).toHaveBeenCalledWith("id", "30000000-0000-4000-8000-0000000000a1")
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ phone: "555-000-0000" })
     )

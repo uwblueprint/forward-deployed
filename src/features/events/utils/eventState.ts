@@ -32,8 +32,10 @@ export function deriveEventState(event: Event, now: number = Date.now()): Derive
 }
 
 /**
- * The legal status changes (pending product sign-off). Cancelled and completed
- * are final; the database also refuses to reopen a completed event.
+ * The legal status changes. Cancelled and completed are final. The database
+ * enforces the same table and the timing rules below (guard_event_status in
+ * supabase/migrations/20261124040000_event_status_and_attendance_rules.sql);
+ * keep the two in step. These checks stay for the error messages.
  */
 export const EVENT_TRANSITIONS: Record<EventStatus, readonly EventStatus[]> = {
   draft: ["published", "cancelled"],

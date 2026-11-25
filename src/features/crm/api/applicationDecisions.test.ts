@@ -83,6 +83,37 @@ describe("approveOrRejectApplication", () => {
     expect(mockRpc).toHaveBeenCalledWith("decide_application", expect.objectContaining({ expected_status: "rejected" }))
   })
 
+  it("passes an admin's internal note through with the decision", async () => {
+    signedIn()
+    decides("rejected")
+
+    await approveOrRejectApplication(APPLICATION_ID, "rejected", "Not this season", { note: "Prefers weekends" })
+
+    expect(mockRpc).toHaveBeenCalledWith("decide_application", {
+      target_application_id: APPLICATION_ID,
+      decision: "rejected",
+      message: "Not this season",
+      note: "Prefers weekends",
+      expected_status: "pending",
+    })
+  })
+
+  it("maps a manager's note to not-allowed (only admins write notes)", async () => {
+    signedIn()
+    fails("42501", "Only admins can write internal notes")
+
+    await expect(approveOrRejectApplication(APPLICATION_ID, "approved", undefined, { note: "x" })).resolves.toEqual({
+      ok: false,
+      error: { type: "not-allowed" },
+    })
+  })
+
+  it("rejects a note over 5000 characters", async () => {
+    const result = await approveOrRejectApplication(APPLICATION_ID, "approved", undefined, { note: "x".repeat(5001) })
+
+    expect(result).toMatchObject({ ok: false, error: { type: "validation", fieldErrors: { note: expect.any(Array) } } })
+  })
+
   it("lets a manager decide (the database decides who is staff)", async () => {
     signedIn()
     decides("approved")

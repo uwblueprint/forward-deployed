@@ -58,8 +58,11 @@ function mapWriteError(error: { code?: string; message: string }): EventRegistra
  * Plain server-side functions - not Server Actions. Call them from inside a
  * Server Action or Route Handler; do not add "use server" to this file.
  *
- * Self-service only: the caller always registers/cancels their own
- * volunteer_id, never one supplied by input. Eligibility (approved
+ * Registering is self-service only: the caller always registers their own
+ * volunteer_id, never one supplied by input. Cancelling is by registration
+ * id: a volunteer can cancel only their own (RLS), and staff can cancel any
+ * signup in their organization, since volunteers call or text a coordinator
+ * to drop out. The database records staff cancellations in the audit log. Eligibility (approved
  * volunteer, open event), duplicate prevention, and capacity are not
  * re-checked here - the RLS policies and the row-locked
  * `enforce_event_capacity` trigger are the single atomic source of truth

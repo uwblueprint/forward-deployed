@@ -1,28 +1,66 @@
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Suspense } from "react"
 
-export default function AdminSettingsPage() {
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { requireRole } from "@/features/auth"
+import { CustomQuestionsEditor, OrganizationSettingsForm, getSettings } from "@/features/settings"
+
+async function OrganizationSettings() {
+  // Pages render alongside the layout, so the layout's check doesn't gate this fetch.
+  await requireRole("admin")
+
+  const result = await getSettings()
+  if (!result.ok) {
+    console.error("Failed to load settings", result.error)
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Couldn&apos;t load settings</AlertTitle>
+        <AlertDescription>Refresh the page to try again.</AlertDescription>
+      </Alert>
+    )
+  }
+
+  const { organization, applicationQuestions, registrationQuestions } = result.data
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Organization and account settings.
-        </p>
-      </div>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Organization</CardTitle>
+          <CardDescription>Your organization&apos;s name and the lists staff and volunteers pick from.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <OrganizationSettingsForm organization={organization} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Nothing to configure yet</CardTitle>
-          <CardDescription>
-            Placeholder page. Admin settings will render here once there is something to change.
-          </CardDescription>
+          <CardTitle>Application questions</CardTitle>
+          <CardDescription>Asked when someone applies to volunteer.</CardDescription>
         </CardHeader>
+        <CardContent>
+          <CustomQuestionsEditor entityType="application" questions={applicationQuestions} />
+        </CardContent>
       </Card>
-    </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Event signup questions</CardTitle>
+          <CardDescription>Asked when a volunteer signs up for an event.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CustomQuestionsEditor entityType="registration" questions={registrationQuestions} />
+        </CardContent>
+      </Card>
+    </>
+  )
+}
+
+export default function AdminSettingsPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading settings…</p>}>
+      <OrganizationSettings />
+    </Suspense>
   )
 }
