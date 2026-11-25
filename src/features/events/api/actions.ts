@@ -1,8 +1,10 @@
 "use server"
 
-import type { Event } from "@/lib/adapters"
+import type { Event, VolunteerStatus } from "@/lib/adapters"
 
 import type { EventStatus } from "../utils/eventState"
+import { getEventDetails, getMyVolunteerStatus } from "./eventDetails"
+import type { EventDetails, EventDetailsResult, VolunteerStatusResult } from "./eventDetails"
 import { changeEventStatus } from "./eventLifecycle"
 import type { EventTransitionResult } from "./eventLifecycle"
 import { getEventRegistrations, setAttendance } from "./eventRegistrations"
@@ -20,9 +22,9 @@ import { cancelRegistration, registerForEvent } from "./registrations"
 import type { EventCancellationResult, EventRegistrationResult } from "./registrations"
 
 /**
- * Server Action wrappers so a Client Component can call these directly. Not
- * wired into any component yet - see registrations.ts's/events.ts's doc
- * comments.
+ * Server Action wrappers so a Client Component can call these directly. The
+ * volunteer event screens (src/app/(volunteer)/events) use the opportunity,
+ * event-details, volunteer-status, register, and cancel actions.
  */
 export async function registerForEventAction(
   eventId: string,
@@ -41,6 +43,14 @@ export async function getOpportunitiesAction(
   filters: OpportunityFilters = {}
 ): Promise<EventQueryResult<Event[]>> {
   return getOpportunities(filters)
+}
+
+export async function getEventDetailsAction(eventId: string): Promise<EventDetailsResult<EventDetails>> {
+  return getEventDetails(eventId)
+}
+
+export async function getMyVolunteerStatusAction(): Promise<VolunteerStatusResult<VolunteerStatus | null>> {
+  return getMyVolunteerStatus()
 }
 
 export async function getMyEventsAction(): Promise<MyEventsResult<MyEvents>> {

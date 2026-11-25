@@ -2,14 +2,24 @@ export {
   cancelRegistrationAction,
   changeEventStatusAction,
   createEventAction,
+  getEventDetailsAction,
   getEventRegistrationsAction,
   getEventsAction,
   getMyEventsAction,
+  getMyVolunteerStatusAction,
   getOpportunitiesAction,
   registerForEventAction,
   setAttendanceAction,
   updateEventAction,
 } from "./actions"
+export type {
+  EventDetails,
+  EventDetailsError,
+  EventDetailsResult,
+  MyRegistration,
+  VolunteerStatusError,
+  VolunteerStatusResult,
+} from "./eventDetails"
 export type { EventTransitionError, EventTransitionResult } from "./eventLifecycle"
 export type {
   AttendanceStatus,

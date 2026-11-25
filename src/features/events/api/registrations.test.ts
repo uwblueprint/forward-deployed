@@ -95,6 +95,7 @@ describe("registerForEvent", () => {
     mockGetUser.mockResolvedValue({ data: { user } })
     mockVolunteerMaybeSingle.mockResolvedValue({ data: { id: "volunteer-1" }, error: null })
     mockEventMaybeSingle.mockResolvedValue({ data: { organization_id: "org-1" }, error: null })
+    mockExistingMaybeSingle.mockResolvedValue({ data: null, error: null })
     mockFieldsEq2.mockResolvedValue({
       data: [
         {
@@ -159,6 +160,21 @@ describe("registerForEvent", () => {
     })
     expect(mockUpdateSingle).toHaveBeenCalled()
     expect(mockInsertSingle).not.toHaveBeenCalled()
+  })
+
+  it("re-registers without asking the questions again, since the original answers are kept", async () => {
+    mockGetUser.mockResolvedValue({ data: { user } })
+    mockVolunteerMaybeSingle.mockResolvedValue({ data: { id: "volunteer-1" }, error: null })
+    mockEventMaybeSingle.mockResolvedValue({ data: { organization_id: "org-1" }, error: null })
+    mockExistingMaybeSingle.mockResolvedValue({ data: { id: "registration-1", status: "cancelled" }, error: null })
+    mockFieldsEq2.mockResolvedValue({
+      data: [{ id: "f1", field_name: "Shirt size", field_type: "text", required: true, options: [] }],
+      error: null,
+    })
+    mockUpdateSingle.mockResolvedValue({ data: { id: "registration-1" }, error: null })
+
+    await expect(registerForEvent("event-1", {})).resolves.toEqual({ ok: true, data: { id: "registration-1" } })
+    expect(mockFieldsEq2).not.toHaveBeenCalled()
   })
 
   it("maps a full-capacity error to type full", async () => {
