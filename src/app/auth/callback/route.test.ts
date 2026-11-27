@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockExchangeCodeForSession, mockGetUserRole, RedirectError } =
+const { mockExchangeCodeForSession, mockResolveRoleRedirect, RedirectError } =
   vi.hoisted(() => {
     class RedirectError extends Error {
       constructor(public readonly url: string) {
@@ -10,7 +10,7 @@ const { mockExchangeCodeForSession, mockGetUserRole, RedirectError } =
 
     return {
       mockExchangeCodeForSession: vi.fn(),
-      mockGetUserRole: vi.fn(),
+      mockResolveRoleRedirect: vi.fn(),
       RedirectError,
     };
   });
@@ -22,7 +22,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/features/auth", () => ({
-  getUserRole: mockGetUserRole,
+  resolveRoleRedirect: mockResolveRoleRedirect,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -54,7 +54,7 @@ describe("GET /auth/callback", () => {
 
     expect(mockExchangeCodeForSession).toHaveBeenCalledWith("abc");
     expect(redirect).toHaveBeenCalledWith("/settings");
-    expect(mockGetUserRole).not.toHaveBeenCalled();
+    expect(mockResolveRoleRedirect).not.toHaveBeenCalled();
   });
 
   it("redirects to a next path that itself contains a query string, once decoded", async () => {
@@ -66,7 +66,7 @@ describe("GET /auth/callback", () => {
     ).rejects.toThrow(RedirectError);
 
     expect(redirect).toHaveBeenCalledWith(invitePath);
-    expect(mockGetUserRole).not.toHaveBeenCalled();
+    expect(mockResolveRoleRedirect).not.toHaveBeenCalled();
   });
 
   it("redirects with reason=expired when Supabase redirects with an otp_expired error", async () => {
@@ -129,13 +129,13 @@ describe("GET /auth/callback", () => {
       data: { user: { id: "user-1" } },
       error: null,
     });
-    mockGetUserRole.mockResolvedValue("admin");
+    mockResolveRoleRedirect.mockResolvedValue("/admin/dashboard");
 
     await expect(GET(makeRequest("?code=abc"))).rejects.toThrow(
       RedirectError,
     );
 
-    expect(mockGetUserRole).toHaveBeenCalledWith({ id: "user-1" });
+    expect(mockResolveRoleRedirect).toHaveBeenCalledWith({ id: "user-1" });
     expect(redirect).toHaveBeenCalledWith("/admin/dashboard");
   });
 
@@ -144,7 +144,7 @@ describe("GET /auth/callback", () => {
       data: { user: { id: "user-1" } },
       error: null,
     });
-    mockGetUserRole.mockResolvedValue("manager");
+    mockResolveRoleRedirect.mockResolvedValue("/admin/dashboard");
 
     await expect(GET(makeRequest("?code=abc"))).rejects.toThrow(
       RedirectError,
@@ -158,7 +158,7 @@ describe("GET /auth/callback", () => {
       data: { user: { id: "user-1" } },
       error: null,
     });
-    mockGetUserRole.mockResolvedValue("volunteer");
+    mockResolveRoleRedirect.mockResolvedValue("/dashboard");
 
     await expect(GET(makeRequest("?code=abc"))).rejects.toThrow(
       RedirectError,
@@ -167,12 +167,12 @@ describe("GET /auth/callback", () => {
     expect(redirect).toHaveBeenCalledWith("/dashboard");
   });
 
-  it("fails closed to /dashboard when getUserRole returns null", async () => {
+  it("fails closed to /dashboard when resolveRoleRedirect returns /dashboard", async () => {
     mockExchangeCodeForSession.mockResolvedValue({
       data: { user: { id: "user-1" } },
       error: null,
     });
-    mockGetUserRole.mockResolvedValue(null);
+    mockResolveRoleRedirect.mockResolvedValue("/dashboard");
 
     await expect(GET(makeRequest("?code=abc"))).rejects.toThrow(
       RedirectError,

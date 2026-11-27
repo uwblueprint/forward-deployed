@@ -1,25 +1,9 @@
-import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
-import { getUserRole } from "@/features/auth";
+import { resolveRoleRedirect } from "@/features/auth";
 import { redeemInvite, type RedeemInviteReason } from "@/features/team";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSafeRedirectPath } from "@/lib/safe-redirect";
-
-/**
- * Staff (admin/manager) go to the admin dashboard; everyone else goes to the
- * volunteer dashboard. Mirrors `resolveCallbackRedirect` in
- * app/auth/callback/route.ts. Fail-closed: `getUserRole` returns null on
- * errors or unknown roles, which sends the user to /dashboard, never
- * /admin/dashboard.
- */
-async function resolveInviteRedirect(user: User): Promise<string> {
-  const role = await getUserRole(user);
-
-  return role === "admin" || role === "manager"
-    ? "/admin/dashboard"
-    : "/dashboard";
-}
 
 const ERROR_REASONS: Record<RedeemInviteReason | "unauthenticated", string> = {
   "not-found": "invalid",
@@ -64,5 +48,5 @@ export async function GET(request: NextRequest) {
     redirect(`/auth/error?reason=${ERROR_REASONS[result.reason]}`);
   }
 
-  redirect(await resolveInviteRedirect(user));
+  redirect(await resolveRoleRedirect(user));
 }

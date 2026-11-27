@@ -6,3 +6,5 @@
 
 export * from "./api"
 export type { TeamMember, UnusedInvite } from "./types"
+export { createInvitationSchema, revokeInvitationSchema, setUserRoleSchema } from "./schemas"
+export type { CreateInvitationInput, RevokeInvitationInput, SetUserRoleInput } from "./schemas"

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockGetUser, mockGetUserRole, mockRedeemInvite, RedirectError } =
+const { mockGetUser, mockResolveRoleRedirect, mockRedeemInvite, RedirectError } =
   vi.hoisted(() => {
     class RedirectError extends Error {
       constructor(public readonly url: string) {
@@ -10,7 +10,7 @@ const { mockGetUser, mockGetUserRole, mockRedeemInvite, RedirectError } =
 
     return {
       mockGetUser: vi.fn(),
-      mockGetUserRole: vi.fn(),
+      mockResolveRoleRedirect: vi.fn(),
       mockRedeemInvite: vi.fn(),
       RedirectError,
     };
@@ -23,7 +23,7 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/features/auth", () => ({
-  getUserRole: mockGetUserRole,
+  resolveRoleRedirect: mockResolveRoleRedirect,
 }));
 
 vi.mock("@/features/team", () => ({
@@ -90,7 +90,7 @@ describe("GET /auth/invite", () => {
   it("redeems and redirects an admin to /admin/dashboard on success", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
     mockRedeemInvite.mockResolvedValue({ ok: true, organizationId: "org-1" });
-    mockGetUserRole.mockResolvedValue("admin");
+    mockResolveRoleRedirect.mockResolvedValue("/admin/dashboard");
 
     await expect(GET(makeRequest("?token=abc123"))).rejects.toThrow(
       RedirectError,
@@ -103,7 +103,7 @@ describe("GET /auth/invite", () => {
   it("redeems and redirects a manager to /admin/dashboard on success", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
     mockRedeemInvite.mockResolvedValue({ ok: true, organizationId: "org-1" });
-    mockGetUserRole.mockResolvedValue("manager");
+    mockResolveRoleRedirect.mockResolvedValue("/admin/dashboard");
 
     await expect(GET(makeRequest("?token=abc123"))).rejects.toThrow(
       RedirectError,
@@ -115,7 +115,7 @@ describe("GET /auth/invite", () => {
   it("redeems and redirects a volunteer to /dashboard on success", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
     mockRedeemInvite.mockResolvedValue({ ok: true, organizationId: "org-1" });
-    mockGetUserRole.mockResolvedValue("volunteer");
+    mockResolveRoleRedirect.mockResolvedValue("/dashboard");
 
     await expect(GET(makeRequest("?token=abc123"))).rejects.toThrow(
       RedirectError,
