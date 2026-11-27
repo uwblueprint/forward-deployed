@@ -21,6 +21,7 @@ export {
   isProtectedPath,
   requireRole,
   requireRoleForRoute,
+  resolveRoleRedirect,
 } from "./api";
 export {
   forgotPasswordSchema,

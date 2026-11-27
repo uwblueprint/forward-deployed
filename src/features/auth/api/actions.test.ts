@@ -672,7 +672,42 @@ describe("resendVerificationEmailAction", () => {
       { email: "person@example.com" },
       {
         emailRedirectTo:
-          "https://forward-deployed.vercel.app/auth/callback?next=/dashboard",
+          "https://forward-deployed.vercel.app/auth/callback?next=%2Fdashboard",
+      },
+    );
+  });
+
+  it("embeds a safe next (url-encoded) in emailRedirectTo", async () => {
+    mockHeaders.set("origin", "https://forward-deployed.vercel.app");
+    resendVerificationEmail.mockResolvedValue({ ok: true, data: null });
+
+    await resendVerificationEmailAction(
+      { status: "idle" },
+      makeFormData({ email: "person@example.com", next: "/auth/invite?token=abc" }),
+    );
+
+    expect(resendVerificationEmail).toHaveBeenCalledWith(
+      { email: "person@example.com" },
+      {
+        emailRedirectTo: `https://forward-deployed.vercel.app/auth/callback?next=${encodeURIComponent("/auth/invite?token=abc")}`,
+      },
+    );
+  });
+
+  it("falls back to /dashboard in emailRedirectTo for an unsafe next", async () => {
+    mockHeaders.set("origin", "https://forward-deployed.vercel.app");
+    resendVerificationEmail.mockResolvedValue({ ok: true, data: null });
+
+    await resendVerificationEmailAction(
+      { status: "idle" },
+      makeFormData({ email: "person@example.com", next: "//evil.com" }),
+    );
+
+    expect(resendVerificationEmail).toHaveBeenCalledWith(
+      { email: "person@example.com" },
+      {
+        emailRedirectTo:
+          "https://forward-deployed.vercel.app/auth/callback?next=%2Fdashboard",
       },
     );
   });

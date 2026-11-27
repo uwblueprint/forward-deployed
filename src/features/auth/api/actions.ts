@@ -1,6 +1,5 @@
 "use server";
 
-import type { User } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isAllowedOrigin } from "@/lib/allowed-origin";
@@ -16,7 +15,7 @@ import {
   verifyResetCode,
 } from "./auth";
 import type { AuthResult } from "./auth";
-import { getUserRole } from "./requireRole";
+import { resolveRoleRedirect } from "./resolveRoleRedirect";
 
 /** Server Action wrapper so Client Components (e.g. the account menu) can sign out. */
 export async function signOutAction(): Promise<AuthResult<null>> {
@@ -78,19 +77,6 @@ function resolveOrigin(
   return isAllowedOrigin(fallbackOrigin) ? fallbackOrigin : undefined;
 }
 
-/**
- * Staff (admin/manager) go to the admin dashboard; everyone else goes to the
- * volunteer dashboard. Fail-closed: `getUserRole` returns null on errors or
- * unknown roles, which sends the user to /dashboard, never /admin/dashboard.
- */
-async function resolveSignInRedirect(user: User): Promise<string> {
-  const role = await getUserRole(user);
-
-  return role === "admin" || role === "manager"
-    ? "/admin/dashboard"
-    : "/dashboard";
-}
-
 export async function requestPasswordResetAction(
   _prevState: ResetFlowActionState,
   formData: FormData,
@@ -117,11 +103,17 @@ export async function resendVerificationEmailAction(
 ): Promise<ResetFlowActionState> {
   const headersList = await headers();
   const origin = resolveOrigin(headersList);
+  const safeNext = getSafeRedirectPath(
+    String(formData.get("next") ?? ""),
+    "/dashboard",
+  );
 
   const result = await resendVerificationEmail(
     { email: String(formData.get("email") ?? "") },
     origin
-      ? { emailRedirectTo: `${origin}/auth/callback?next=/dashboard` }
+      ? {
+          emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(safeNext)}`,
+        }
       : undefined,
   );
 
@@ -202,7 +194,7 @@ export async function signInAction(
   }
 
   const user = result.data.user;
-  const fallback = user ? await resolveSignInRedirect(user) : "/dashboard";
+  const fallback = user ? await resolveRoleRedirect(user) : "/dashboard";
   const redirectPath = getSafeRedirectPath(
     String(formData.get("next") ?? ""),
     fallback,

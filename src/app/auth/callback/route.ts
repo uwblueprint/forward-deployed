@@ -1,25 +1,9 @@
-import type { User } from "@supabase/supabase-js";
 import { isAuthPKCECodeVerifierMissingError } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
-import { getUserRole } from "@/features/auth";
+import { resolveRoleRedirect } from "@/features/auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSafeRedirectPath } from "@/lib/safe-redirect";
-
-/**
- * Staff (admin/manager) go to the admin dashboard; everyone else goes to the
- * volunteer dashboard. Mirrors `resolveSignInRedirect` in
- * features/auth/api/actions.ts. Fail-closed: `getUserRole` returns null on
- * errors or unknown roles, which sends the user to /dashboard, never
- * /admin/dashboard.
- */
-async function resolveCallbackRedirect(user: User): Promise<string> {
-  const role = await getUserRole(user);
-
-  return role === "admin" || role === "manager"
-    ? "/admin/dashboard"
-    : "/dashboard";
-}
 
 /**
  * Exchanges a PKCE `code` for a session. Requires the code-verifier cookie
@@ -58,7 +42,7 @@ export async function GET(request: NextRequest) {
   }
 
   const redirectPath = data.user
-    ? await resolveCallbackRedirect(data.user)
+    ? await resolveRoleRedirect(data.user)
     : "/dashboard";
 
   redirect(redirectPath);
