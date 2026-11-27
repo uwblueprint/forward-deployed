@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -245,18 +245,40 @@ describe("EventDetail", () => {
     expect(screen.queryByRole("button", { name: /^Register/ })).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "Cancel registration" }))
 
+    // Nothing happens until the volunteer confirms.
+    const dialog = await screen.findByRole("dialog", { name: "Cancel your registration?" })
+    expect(mockCancel).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole("button", { name: "Cancel registration" }))
+
     expect(mockCancel).toHaveBeenCalledWith("reg-1")
     expect(await screen.findByText("Your registration was cancelled.")).toBeInTheDocument()
     expect(registerButton()).toBeEnabled()
   })
 
-  it("explains a cancellation that's no longer allowed", async () => {
+  it("keeps the registration when the volunteer backs out of the confirmation", async () => {
     const user = userEvent.setup()
-    mockCancel.mockResolvedValue({ ok: false, error: { type: "not-eligible" } })
     renderDetail({ registration: { id: "reg-1", status: "registered" } })
 
     await user.click(screen.getByRole("button", { name: "Cancel registration" }))
+    await user.click(await screen.findByRole("button", { name: "Keep registration" }))
 
-    expect(await screen.findByText("This registration can't be cancelled anymore.")).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+    expect(mockCancel).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Cancel registration" })).toBeEnabled()
+  })
+
+  it.each([
+    ["not-eligible", "This registration can't be cancelled anymore."],
+    ["attendance-recorded", /attendance for this event has already been recorded/],
+  ] as const)("explains a refused cancellation (%s)", async (type, message) => {
+    const user = userEvent.setup()
+    mockCancel.mockResolvedValue({ ok: false, error: { type } })
+    renderDetail({ registration: { id: "reg-1", status: "registered" } })
+
+    await user.click(screen.getByRole("button", { name: "Cancel registration" }))
+    const dialog = await screen.findByRole("dialog")
+    await user.click(within(dialog).getByRole("button", { name: "Cancel registration" }))
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
   })
 })

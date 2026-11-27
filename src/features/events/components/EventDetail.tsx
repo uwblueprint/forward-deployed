@@ -7,6 +7,15 @@ import { cn } from "cn"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { validateCustomFieldAnswers } from "@/lib/customFieldAnswers"
 
 import { cancelRegistrationAction, registerForEventAction } from "../api/actions"
@@ -68,6 +77,7 @@ export function EventDetail({
   const [values, setValues] = useState<QuestionValues>({})
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({})
   const [busy, setBusy] = useState<"register" | "cancel" | null>(null)
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
   const [feedback, setFeedback] = useState<Feedback | null>(null)
 
   // A cancelled or completed event offers no actions, registered or not.
@@ -142,6 +152,7 @@ export function EventDetail({
 
   async function cancel() {
     if (!registration) return
+    setConfirmingCancel(false)
     setBusy("cancel")
     setFeedback(null)
     try {
@@ -233,14 +244,36 @@ export function EventDetail({
       <footer className="flex flex-wrap items-center justify-end gap-2 border-t bg-muted/50 p-4">
         <EventStatusChip chip={chip} />
         {eventOver ? null : registered ? (
-          <Button
-            size="lg"
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            disabled={busy !== null}
-            onClick={() => void cancel()}
-          >
-            {busy === "cancel" ? "Cancelling…" : "Cancel registration"}
-          </Button>
+          <>
+            <Button
+              size="lg"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={busy !== null}
+              onClick={() => setConfirmingCancel(true)}
+            >
+              {busy === "cancel" ? "Cancelling…" : "Cancel registration"}
+            </Button>
+            <Dialog open={confirmingCancel} onOpenChange={setConfirmingCancel}>
+              <DialogContent showCloseButton={false}>
+                <DialogHeader>
+                  <DialogTitle>Cancel your registration?</DialogTitle>
+                  <DialogDescription>
+                    You&apos;ll give up your spot at {event.title}. If spots are still open, you can register again
+                    later.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <DialogClose render={<Button variant="outline" />}>Keep registration</DialogClose>
+                  <Button
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => void cancel()}
+                  >
+                    Cancel registration
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </>
         ) : (
           <>
             {step === "questions" && (

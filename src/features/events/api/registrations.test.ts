@@ -256,6 +256,19 @@ describe("cancelRegistration", () => {
     })
   })
 
+  it.each([
+    ["23514", "violates check constraint \"registrations_no_attendance_when_cancelled\""],
+    ["55000", "A cancelled registration cannot have attendance"],
+  ])("maps the attendance rule (%s) to attendance-recorded", async (code, message) => {
+    mockGetUser.mockResolvedValue({ data: { user } })
+    mockUpdateMaybeSingle.mockResolvedValue({ data: null, error: { code, message } })
+
+    await expect(cancelRegistration("registration-1")).resolves.toEqual({
+      ok: false,
+      error: { type: "attendance-recorded" },
+    })
+  })
+
   it("returns not-eligible when attendance was recorded or the event is completed", async () => {
     mockGetUser.mockResolvedValue({ data: { user } })
     mockUpdateMaybeSingle.mockResolvedValue({
