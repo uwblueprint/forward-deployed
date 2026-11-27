@@ -15,6 +15,8 @@ export type EventCancellationError =
   | { type: "unauthenticated" }
   | { type: "not-found" }
   | { type: "not-eligible" }
+  /** Attendance is already recorded for this signup, so it can't be cancelled. */
+  | { type: "attendance-recorded" }
   | { type: "backend"; message: string }
 
 export type EventRegistrationResult<T> =
@@ -30,7 +32,11 @@ export type EventCancellationResult<T> =
 // .../20261104002935_access_control.sql, and .../20261106020742_registration_rules.sql):
 // - 23505 unique_violation: a (event_id, volunteer_id) row already exists -
 //   re-registering updates that row's status instead of inserting again.
-// - 23514 check_violation: enforce_event_capacity found the event full.
+// - 23514 check_violation: enforce_event_capacity found the event full; when
+//   cancelling, registrations_no_attendance_when_cancelled refused because
+//   attendance is already recorded (.../20261124040000_event_status_and_attendance_rules.sql).
+// - 55000 object_not_in_prerequisite_state: the same attendance rule, raised
+//   by guard_registrations_update when staff cancel the signup.
 // - 42501 insufficient_privilege: the RLS check failed - not an approved
 //   volunteer, the event isn't open (not published / started / past its
 //   registration deadline), or (for cancellation) attendance was already
@@ -43,6 +49,7 @@ const UNIQUE_VIOLATION = "23505"
 const CAPACITY_VIOLATION = "23514"
 const RLS_VIOLATION = "42501"
 const INVALID_ANSWERS = "22023"
+const PREREQUISITE_STATE = "55000"
 
 type Row = { id: string }
 
@@ -192,6 +199,10 @@ export async function cancelRegistration(registrationId: string): Promise<EventC
     .maybeSingle()
 
   if (error) {
+    // Cancelling never adds a row, so a check violation here is the attendance rule, not capacity.
+    if (error.code === CAPACITY_VIOLATION || error.code === PREREQUISITE_STATE) {
+      return { ok: false, error: { type: "attendance-recorded" } }
+    }
     if (error.code === RLS_VIOLATION) {
       return { ok: false, error: { type: "not-eligible" } }
     }

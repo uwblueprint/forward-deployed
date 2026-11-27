@@ -56,6 +56,8 @@ export function cancellationErrorMessage(error: EventCancellationError): string 
       return "We couldn't find your registration. Refresh the page and try again."
     case "not-eligible":
       return "This registration can't be cancelled anymore."
+    case "attendance-recorded":
+      return "Your attendance for this event has already been recorded, so this registration can't be cancelled. Contact the organizer if that's a mistake."
     default:
       return GENERIC_ERROR
   }
